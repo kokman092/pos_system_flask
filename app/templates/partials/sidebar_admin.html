@@ -1,0 +1,76 @@
+<aside id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block sidebar collapse vh-100">
+    <div class="position-sticky pt-3 sidebar-sticky">
+        <ul class="nav flex-column gap-1 px-2">
+            {% if current_user.has_permission('dashboard', 'view') %}
+            <li class="nav-item">
+                <a class="nav-link rounded px-3 py-2 {{ 'active' if request.endpoint == 'dashboard.dashboard' else '' }}" href="{{ url_for('dashboard.dashboard') }}" aria-label="Dashboard">
+                    <i class="fa-solid fa-chart-line fa-fw me-2"></i> Dashboard
+                </a>
+            </li>
+            {% endif %}
+            
+            {% if current_user.has_permission('settings', 'view') or current_user.has_permission('inventory', 'view') %}
+            <li class="nav-item">
+                <a class="nav-link rounded px-3 py-2 {{ 'active' if request.endpoint == 'menu.index' else '' }}" href="{{ url_for('menu.index') }}" aria-label="Menu Management">
+                    <i class="fa-solid fa-burger fa-fw me-2"></i> Menu
+                </a>
+            </li>
+            {% endif %}
+            
+            {% if current_user.has_permission('inventory', 'view') or current_user.has_permission('suppliers', 'view') or current_user.has_permission('purchasing', 'view') %}
+            <li class="nav-item">
+                <a class="nav-link rounded px-3 py-2 {{ 'active' if request.endpoint == 'inventory.index' else '' }}" href="{{ url_for('inventory.index') }}" aria-label="Inventory">
+                    <i class="fa-solid fa-boxes-stacked fa-fw me-2"></i> Inventory
+                </a>
+            </li>
+            {% endif %}
+            
+            {% if current_user.role == 'admin' or current_user.has_permission('settings', 'view') %}
+            <li class="nav-item">
+                <a class="nav-link rounded px-3 py-2 {{ 'active' if request.endpoint == 'employees.index' else '' }}" href="{{ url_for('employees.index') }}" aria-label="Employees">
+                    <i class="fa-solid fa-users fa-fw me-2"></i> Employees
+                </a>
+            </li>
+            {% endif %}
+
+            {% if current_user.has_permission('roles', 'manage') %}
+            <li class="nav-item">
+                <a class="nav-link rounded px-3 py-2 {{ 'active' if request.endpoint.startswith('roles.') else '' }}" href="{{ url_for('roles.index') }}" aria-label="Roles">
+                    <i class="fa-solid fa-user-shield fa-fw me-2"></i> Roles
+                </a>
+            </li>
+            {% endif %}
+            
+            {% if current_user.has_permission('reports', 'view') %}
+            <li class="nav-item">
+                <a class="nav-link rounded px-3 py-2 {{ 'active' if request.endpoint == 'reports.index' else '' }}" href="{{ url_for('reports.index') }}" aria-label="Reports">
+                    <i class="fa-solid fa-file-invoice-dollar fa-fw me-2"></i> Reports
+                </a>
+            </li>
+            {% endif %}
+            
+            {% if current_user.has_permission('settings', 'view') %}
+            <li class="nav-item">
+                <a class="nav-link rounded px-3 py-2 {{ 'active' if request.endpoint == 'tables.index' else '' }}" href="{{ url_for('tables.index') }}" aria-label="Tables Management">
+                    <i class="fa-solid fa-chair fa-fw me-2"></i> Tables
+                </a>
+            </li>
+            {% endif %}
+            
+            {% if current_user.has_permission('settings', 'view') %}
+            <li class="nav-item mt-3">
+                <a class="nav-link rounded px-3 py-2 text-secondary {{ 'active' if request.endpoint == 'settings.index' else '' }}" href="{{ url_for('settings.index') }}" aria-label="Settings">
+                    <i class="fa-solid fa-gear fa-fw me-2"></i> Settings
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+        {% if current_user.has_permission('pos', 'view') %}
+        <div class="px-3 mt-5">
+            <a href="{{ url_for('pos.pos_index') }}" class="btn btn-emerald w-100 text-start shadow-sm" aria-label="Launch POS">
+                <i class="fa-solid fa-cash-register me-2"></i> Launch POS
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</aside>

@@ -1,0 +1,570 @@
+{% extends "base/base.html" %}
+
+{% block extra_css %}
+<style>
+    body { 
+        background-color: #0b0f19 !important; 
+        overflow: hidden; 
+        font-family: 'Inter', sans-serif; 
+    }
+    .kds-toolbar {
+        background-color: #0f172a;
+        border-bottom: 1px solid #1e293b;
+        height: 60px;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+    }
+    .kds-badge {
+        background: #10b981;
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 999px;
+        margin-left: 8px;
+        min-width: 28px;
+        text-align: center;
+        display: inline-block;
+        transition: background 0.3s;
+    }
+    .kds-badge.urgent {
+        background: #dc2626;
+        animation: pulse-badge 1s infinite;
+    }
+    @keyframes pulse-badge {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: 0.6; }
+    }
+    .kds-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 1.5rem;
+        padding: 1.5rem;
+        height: calc(100vh - 60px);
+        overflow-y: auto;
+        background-color: #0b0f19;
+    }
+    .ticket {
+        background-color: #0f172a;
+        border: 2px solid #1e293b;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+        height: fit-content;
+    }
+    .ticket:hover {
+        transform: translateY(-4px);
+        border-color: #10b981;
+        box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+    }
+    .ticket.new-ticket {
+        animation: slide-in-bounce 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes slide-in-bounce {
+        0%   { opacity: 0; transform: translateY(30px) scale(0.92); }
+        70%  { transform: translateY(-4px) scale(1.02); }
+        100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .ticket-header {
+        background-color: #1e293b;
+        padding: 1rem 1.25rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #334155;
+    }
+    .ticket-warning {
+        border-color: #d97706;
+    }
+    .ticket-warning .ticket-header {
+        background-color: #b45309;
+        color: #fff;
+        border-bottom-color: #d97706;
+    }
+    .ticket-danger {
+        border-color: #dc2626;
+    }
+    .ticket-danger .ticket-header {
+        background-color: #9f1239;
+        color: #fff;
+        border-bottom-color: #dc2626;
+    }
+    .ticket-body {
+        padding: 1.25rem;
+        flex-grow: 1;
+        font-size: 1.15rem;
+        color: #e2e8f0;
+    }
+    .ticket-item {
+        padding-bottom: 0.75rem;
+        border-bottom: 1px dashed #334155;
+        margin-bottom: 0.75rem;
+    }
+    .ticket-item:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+    .ticket-action-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(15, 23, 42, 0.9);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        z-index: 2;
+    }
+    .ticket:hover .ticket-action-overlay {
+        opacity: 1;
+    }
+    .ticket-action-overlay i {
+        font-size: 2.5rem;
+        color: #10b981;
+        margin-bottom: 0.5rem;
+        transform: scale(0.8);
+        transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .ticket:hover .ticket-action-overlay i {
+        transform: scale(1);
+    }
+    .ticket.serving {
+        pointer-events: none;
+    }
+    .ticket.serving .ticket-action-overlay {
+        opacity: 1;
+        background-color: rgba(15, 23, 42, 0.85);
+    }
+    .ticket.serving .ticket-action-overlay i {
+        animation: spin 1s linear infinite;
+        color: #10b981 !important;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    .ticket.fade-out {
+        opacity: 0;
+        transform: scale(0.9);
+        transition: all 0.4s cubic-bezier(0.4, 0, 1, 1);
+    }
+    .ticket:focus {
+        outline: 2px solid #10b981;
+        outline-offset: 2px;
+    }
+    .shortcut-hint {
+        font-size: 0.7rem;
+        color: #475569;
+        display: flex;
+        gap: 12px;
+    }
+    .shortcut-hint kbd {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-size: 0.7rem;
+        color: #94a3b8;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="kds-toolbar d-flex justify-content-between align-items-center px-4">
+    <div class="d-flex align-items-center gap-2">
+        <h4 class="mb-0 fw-bold text-emerald tracking-wide">{{ station_name|default('KITCHEN DISPLAY') }}</h4>
+        <span class="kds-badge" id="kds-ticket-badge">{{ ticket_count|default(0) }}</span>
+    </div>
+    <div class="d-flex align-items-center gap-4">
+        <div class="shortcut-hint d-none d-md-flex">
+            <span><kbd>↑↓</kbd> Navigate</span>
+            <span><kbd>Enter</kbd> Complete</span>
+            <span><kbd>M</kbd> Mute audio</span>
+        </div>
+        <div id="audio-toggle" title="Toggle audio alerts" style="cursor:pointer; color: #10b981;" onclick="toggleAudio()">
+            <i class="fa-solid fa-volume-high" id="audio-icon"></i>
+        </div>
+        <div class="text-success fw-bold"><i class="fa-solid fa-circle pulse-dot small me-1"></i> LIVE</div>
+        <div class="h5 mb-0 text-light" id="kds-clock" aria-live="polite">--:--</div>
+    </div>
+</div>
+
+<div class="kds-grid" id="kds-grid">
+    {% for order in orders %}
+    <div class="ticket {% if order.elapsed_min|default(0) >= 20 %}ticket-danger{% elif order.elapsed_min|default(0) >= 10 %}ticket-warning{% endif %}"
+         role="button" tabindex="0" aria-label="Complete order {{ order.order.order_id|default('') }}"
+         data-order-id="{{ order.order.order_id }}"
+         data-elapsed="{{ order.elapsed_min|default(0) }}"
+         data-item-ids="{{ order['items']|map(attribute='order_item_id')|list|tojson }}">
+        <div class="ticket-action-overlay">
+            <i class="fa-solid fa-circle-check"></i>
+            <span class="fw-bold text-success">TAP TO SERVE</span>
+        </div>
+        <div class="ticket-header">
+            <div>
+                <h3 class="mb-0 fw-bold">#{{ order.order.order_id|default('—') }}</h3>
+                <span class="fs-5">
+                    {% if order.table %}
+                        Table {{ order.table.table_number }}
+                    {% else %}
+                        {{ order.order.order_type.replace('_', ' ').title() if order.order.order_type else 'Takeaway' }}
+                    {% endif %}
+                </span>
+            </div>
+            <div class="text-end">
+                <h2 class="mb-0 fw-bold kds-elapsed">{{ order.elapsed_min|default(0) }}m</h2>
+            </div>
+        </div>
+        <div class="ticket-body">
+            {% for item in order['items']|default([]) %}
+            <div class="ticket-item">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="fw-semibold">
+                        <span class="text-emerald fw-bold me-2">{{ item.quantity }}x</span>
+                        <span>{{ item.menu_item.name }}</span>
+                    </div>
+                </div>
+                {% if item.notes %}
+                <div class="text-warning small mt-1 ms-3">
+                    <i class="fa-solid fa-comment-dots me-1"></i> {{ item.notes }}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="d-flex flex-column align-items-center justify-content-center text-secondary" id="all-clear-msg" style="grid-column: 1 / -1; height: 60vh;">
+        <i class="fa-solid fa-check-circle fs-1 mb-3 text-success"></i>
+        <h3>All clear</h3>
+        <p>No active tickets.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // ── Clock ────────────────────────────────────────────────────────────────
+    function updateClock() {
+        document.getElementById('kds-clock').textContent =
+            new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // ── Elapsed timers (update every minute) ─────────────────────────────────
+    function updateElapsedTimers() {
+        document.querySelectorAll('.ticket').forEach(ticket => {
+            const elapsed = parseInt(ticket.dataset.elapsed || 0, 10) + 1;
+            ticket.dataset.elapsed = elapsed;
+            const el = ticket.querySelector('.kds-elapsed');
+            if (el) el.textContent = elapsed + 'm';
+            // Update urgency class
+            ticket.classList.remove('ticket-warning', 'ticket-danger');
+            if (elapsed >= 20) ticket.classList.add('ticket-danger');
+            else if (elapsed >= 10) ticket.classList.add('ticket-warning');
+        });
+    }
+    setInterval(updateElapsedTimers, 60000);
+
+    // ── Audio ────────────────────────────────────────────────────────────────
+    let audioEnabled = true;
+    let audioCtx = null;
+
+    function getAudioCtx() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        return audioCtx;
+    }
+
+    function playNewTicketSound() {
+        if (!audioEnabled) return;
+        try {
+            const ctx = getAudioCtx();
+            // Two-tone chime: 880Hz then 1046Hz
+            [[880, 0, 0.18], [1046, 0.20, 0.18]].forEach(([freq, start, dur]) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.001, ctx.currentTime + start);
+                gain.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + start + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(ctx.currentTime + start);
+                osc.stop(ctx.currentTime + start + dur + 0.05);
+            });
+        } catch (e) { /* AudioContext may not be available */ }
+    }
+
+    function toggleAudio() {
+        audioEnabled = !audioEnabled;
+        document.getElementById('audio-icon').className = audioEnabled
+            ? 'fa-solid fa-volume-high'
+            : 'fa-solid fa-volume-xmark';
+        document.getElementById('audio-toggle').style.color = audioEnabled ? '#10b981' : '#475569';
+    }
+
+    // ── Ticket badge update ───────────────────────────────────────────────────
+    function updateBadge() {
+        const count = document.querySelectorAll('.ticket:not(.fade-out)').length;
+        const badge = document.getElementById('kds-ticket-badge');
+        if (badge) {
+            badge.textContent = count;
+            badge.classList.toggle('urgent', count >= 5);
+        }
+    }
+
+    // ── Serve ticket ─────────────────────────────────────────────────────────
+    async function serveTicket(ticket) {
+        if (ticket.classList.contains('serving') || ticket.classList.contains('fade-out')) return;
+
+        const itemIdsJson = ticket.getAttribute('data-item-ids');
+        if (!itemIdsJson) return;
+        let itemIds;
+        try { itemIds = JSON.parse(itemIdsJson); } catch { return; }
+        if (!itemIds || itemIds.length === 0) return;
+
+        ticket.classList.add('serving');
+        const overlayIcon = ticket.querySelector('.ticket-action-overlay i');
+        if (overlayIcon) overlayIcon.className = 'fa-solid fa-spinner';
+
+        try {
+            const requests = itemIds.map(id =>
+                fetch(`/kitchen/api/serve/${id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    }
+                }).then(res => {
+                    if (!res.ok) throw new Error(`Failed to serve item ${id}`);
+                    return res.json();
+                })
+            );
+            await Promise.all(requests);
+
+            if (overlayIcon) overlayIcon.className = 'fa-solid fa-circle-check text-success';
+
+            setTimeout(() => {
+                ticket.classList.add('fade-out');
+                setTimeout(() => {
+                    ticket.remove();
+                    updateBadge();
+                    showAllClearIfEmpty();
+                }, 400);
+            }, 300);
+
+        } catch (err) {
+            console.error('Error serving ticket:', err);
+            alert('Failed to complete the ticket. Please try again.');
+            ticket.classList.remove('serving');
+            if (overlayIcon) overlayIcon.className = 'fa-solid fa-circle-check';
+        }
+    }
+
+    function showAllClearIfEmpty() {
+        const grid = document.getElementById('kds-grid');
+        if (!grid) return;
+        if (grid.querySelectorAll('.ticket').length === 0) {
+            const existing = document.getElementById('all-clear-msg');
+            if (!existing) {
+                grid.innerHTML = `
+                    <div class="d-flex flex-column align-items-center justify-content-center text-secondary" id="all-clear-msg" style="grid-column: 1 / -1; height: 60vh;">
+                        <i class="fa-solid fa-check-circle fs-1 mb-3 text-success"></i>
+                        <h3>All clear</h3>
+                        <p>No active tickets.</p>
+                    </div>`;
+            }
+        }
+    }
+
+    // ── DOM-patch: add new tickets without full reload ────────────────────────
+    function buildTicketHTML(ticket) {
+        const elapsed = ticket.elapsed_min || 0;
+        const urgencyClass = elapsed >= 20 ? 'ticket-danger' : elapsed >= 10 ? 'ticket-warning' : '';
+        const tableLabel = ticket.table_number
+            ? `Table ${ticket.table_number}`
+            : (ticket.order_type || 'Takeaway').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const itemsHTML = (ticket.items || []).map(item => `
+            <div class="ticket-item">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="fw-semibold">
+                        <span class="text-emerald fw-bold me-2">${item.quantity}x</span>
+                        <span>${item.name}</span>
+                    </div>
+                </div>
+                ${item.notes ? `<div class="text-warning small mt-1 ms-3"><i class="fa-solid fa-comment-dots me-1"></i> ${item.notes}</div>` : ''}
+            </div>`).join('');
+
+        return `<div class="ticket new-ticket ${urgencyClass}"
+                     role="button" tabindex="0"
+                     aria-label="Complete order ${ticket.order_id}"
+                     data-order-id="${ticket.order_id}"
+                     data-elapsed="${elapsed}"
+                     data-item-ids='${JSON.stringify(ticket.item_ids)}'>
+                    <div class="ticket-action-overlay">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <span class="fw-bold text-success">TAP TO SERVE</span>
+                    </div>
+                    <div class="ticket-header">
+                        <div>
+                            <h3 class="mb-0 fw-bold">#${ticket.order_id}</h3>
+                            <span class="fs-5">${tableLabel}</span>
+                        </div>
+                        <div class="text-end">
+                            <h2 class="mb-0 fw-bold kds-elapsed">${elapsed}m</h2>
+                        </div>
+                    </div>
+                    <div class="ticket-body">${itemsHTML}</div>
+                </div>`;
+    }
+
+    // ── Poll for updates (DOM patch, not location.reload) ────────────────────
+    let knownOrderIds = new Set(
+        Array.from(document.querySelectorAll('.ticket')).map(t => t.dataset.orderId)
+    );
+
+    async function checkUpdates() {
+        // Don't diff while a ticket is being completed
+        if (document.querySelector('.ticket.serving')) return;
+
+        try {
+            // Use the lightweight ticket IDs endpoint first
+            const res = await fetch('/kds/api/tickets');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!data.success) return;
+
+            const activeIds = new Set(data.data.map(String));
+            const currentIds = new Set(
+                Array.from(document.querySelectorAll('.ticket:not(.fade-out)'))
+                    .map(t => t.dataset.orderId)
+            );
+
+            const hasNew = [...activeIds].some(id => !currentIds.has(id));
+            const hasRemoved = [...currentIds].some(id => !activeIds.has(id));
+
+            if (!hasNew && !hasRemoved) return;
+
+            // Fetch full ticket data to build new cards
+            const fullRes = await fetch('/kitchen/api/tickets');
+            if (!fullRes.ok) return;
+            const fullData = await fullRes.json();
+            if (!fullData.success || !Array.isArray(fullData.data)) return;
+
+            const grid = document.getElementById('kds-grid');
+            if (!grid) return;
+
+            // Remove all-clear placeholder if present
+            const allClear = document.getElementById('all-clear-msg');
+            if (allClear && fullData.data.length > 0) allClear.remove();
+
+            // Group items by order_id
+            const orderMap = {};
+            for (const item of fullData.data) {
+                const oid = String(item.order_id);
+                if (!orderMap[oid]) {
+                    orderMap[oid] = {
+                        order_id: item.order_id,
+                        table_number: item.table_number,
+                        order_type: item.order_type,
+                        elapsed_min: item.elapsed_min || 0,
+                        item_ids: [],
+                        items: []
+                    };
+                }
+                orderMap[oid].item_ids.push(item.item_id);
+                orderMap[oid].items.push({
+                    quantity: item.quantity,
+                    name: item.item_name,
+                    notes: item.notes || ''
+                });
+            }
+
+            const newOrderIds = new Set(Object.keys(orderMap));
+
+            // Add new tickets
+            let addedAny = false;
+            for (const [oid, ticket] of Object.entries(orderMap)) {
+                if (!currentIds.has(oid)) {
+                    const div = document.createElement('div');
+                    div.innerHTML = buildTicketHTML(ticket).trim();
+                    const el = div.firstChild;
+                    grid.appendChild(el);
+                    addedAny = true;
+                }
+            }
+
+            // Remove tickets that are no longer active (not serving)
+            document.querySelectorAll('.ticket:not(.fade-out):not(.serving)').forEach(t => {
+                if (!newOrderIds.has(t.dataset.orderId)) {
+                    t.classList.add('fade-out');
+                    setTimeout(() => { t.remove(); updateBadge(); showAllClearIfEmpty(); }, 400);
+                }
+            });
+
+            if (addedAny) {
+                playNewTicketSound();
+                updateBadge();
+            }
+
+        } catch (err) {
+            console.error('KDS update error:', err);
+        }
+    }
+
+    setInterval(checkUpdates, 5000);
+
+    // ── Event delegation (click + keyboard) ──────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        const grid = document.getElementById('kds-grid');
+        if (!grid) return;
+
+        grid.addEventListener('click', (e) => {
+            const ticket = e.target.closest('.ticket');
+            if (ticket) serveTicket(ticket);
+        });
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            const tickets = Array.from(document.querySelectorAll('.ticket:not(.fade-out):not(.serving)'));
+            if (!tickets.length) return;
+
+            const focused = document.activeElement;
+            const idx = tickets.indexOf(focused);
+
+            if (e.key === 'ArrowDown' || e.key === 'Tab' && !e.shiftKey) {
+                e.preventDefault();
+                const next = tickets[idx < tickets.length - 1 ? idx + 1 : 0];
+                next && next.focus();
+            } else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
+                e.preventDefault();
+                const prev = tickets[idx > 0 ? idx - 1 : tickets.length - 1];
+                prev && prev.focus();
+            } else if ((e.key === 'Enter' || e.key === ' ') && focused && focused.classList.contains('ticket')) {
+                e.preventDefault();
+                serveTicket(focused);
+            } else if (e.key === 'm' || e.key === 'M') {
+                toggleAudio();
+            }
+        });
+
+        updateBadge();
+    });
+</script>
+{% endblock %}

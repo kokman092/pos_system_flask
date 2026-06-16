@@ -1,0 +1,10 @@
+<div class="card glass-card text-center p-5 border-dashed fade-in-up">
+    <div class="card-body">
+        <i class="{{ icon|default('fa-solid fa-folder-open') }} fs-1 text-secondary mb-3 d-block"></i>
+        <h5 class="card-title fw-semibold text-light">{{ title|default('No data available') }}</h5>
+        <p class="card-text text-secondary mb-0">{{ message|default('Get started by creating your first entry.') }}</p>
+        {% if action_url and action_label %}
+            <a href="{{ action_url }}" class="btn btn-outline-emerald mt-3">{{ action_label }}</a>
+        {% endif %}
+    </div>
+</div>

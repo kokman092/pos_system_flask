@@ -1,0 +1,967 @@
+{% extends "base/app_base.html" %}
+{% block title %}Loyalty{% endblock %}
+
+{% block content %}
+{% macro render_detail_panel(c, open_orders) %}
+<!-- Profile Card -->
+<div class="card glass-card mb-4">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <div class="rounded-circle bg-emerald bg-opacity-20 text-emerald d-flex align-items-center justify-content-center fw-bold"
+                     style="width: 56px; height: 56px; font-size: 1.4rem;">
+                    {{ c.name[0]|upper }}
+                </div>
+            </div>
+            <div class="col">
+                <h5 class="mb-0 text-light fw-bold">{{ c.name }}</h5>
+                <small class="text-secondary d-block mt-1">
+                    <i class="fa-solid fa-phone me-1"></i>{{ c.phone }}
+                    {% if c.email %}
+                    <span class="mx-2">·</span><i class="fa-solid fa-envelope me-1"></i>{{ c.email }}
+                    {% endif %}
+                </small>
+                <div class="mt-2 d-flex align-items-center gap-2">
+                    <span class="badge badge-emerald-soft">
+                        {{ c.tier.icon }} {{ c.tier.name }}
+                    </span>
+                    <small class="text-secondary">
+                        Member since {{ c.member_since }}
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        {% if c.tier.next %}
+        <div class="mt-4">
+            <div class="d-flex justify-content-between small text-secondary mb-1">
+                <span>Current Tier: <strong>{{ c.tier.name }}</strong></span>
+                <span>Next Tier: <strong>{{ c.tier.next.name }}</strong></span>
+            </div>
+            <div class="progress bg-dark bg-opacity-50" style="height: 8px; border-radius: 4px;">
+                <div class="progress-bar bg-emerald"
+                     role="progressbar"
+                     style="width: {{ c.tier.progress_pct }}%; border-radius: 4px;"
+                     aria-valuenow="{{ c.tier.progress_pct }}"
+                     aria-valuemin="0"
+                     aria-valuemax="100">
+                </div>
+            </div>
+            <small class="text-secondary d-block mt-2">
+                Spent: ${{ "%.2f"|format(c.total_spent_cents / 100) }} / ${{ "%.2f"|format(c.tier.next.min / 100) }}
+            </small>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card glass-card text-center p-3 h-100">
+            <div class="fs-3 fw-bold text-emerald mb-1">
+                {{ c.points_balance }}
+            </div>
+            <small class="text-secondary uppercase-label">Points Balance</small>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card glass-card text-center p-3 h-100">
+            <div class="fs-3 fw-bold text-light mb-1">
+                ${{ "%.2f"|format(c.total_spent_cents / 100) }}
+            </div>
+            <small class="text-secondary uppercase-label">Total Spent</small>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card glass-card text-center p-3 h-100">
+            <div class="fs-3 fw-bold text-warning mb-1">
+                {{ c.transactions|length }}
+            </div>
+            <small class="text-secondary uppercase-label">Transactions</small>
+        </div>
+    </div>
+</div>
+
+<!-- Order Integration -->
+<div class="card glass-card mb-4">
+    <div class="glass-card-header">
+        <h5 class="mb-0 fw-semibold text-light">
+            <i class="fa-solid fa-link text-emerald me-2"></i>Order Integration
+        </h5>
+    </div>
+    <div class="card-body">
+        {% if open_orders %}
+        <div class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label for="redeemOrderSelect" class="form-label text-light small fw-semibold">Select Open Order</label>
+                <select id="redeemOrderSelect" class="form-select form-dark">
+                    {% for o in open_orders %}
+                    <option value="{{ o.order_id }}">
+                        {% if o.table %}
+                            Table {{ o.table.table_number }} (Order #{{ o.order_id }})
+                        {% else %}
+                            {{ o.order_type|title }} (Order #{{ o.order_id }})
+                        {% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="redeemPointsInput" class="form-label text-light small fw-semibold">Points to Redeem</label>
+                <input type="number" id="redeemPointsInput" class="form-control form-dark"
+                       min="0" step="100" max="{{ c.points_balance }}" value="0"
+                       placeholder="Multiple of 100">
+                <small class="text-secondary">Every 100 points = $5.00 discount</small>
+            </div>
+            <div class="col-md-3 d-flex flex-column gap-2">
+                <button id="attachBtn" class="btn btn-outline-light btn-sm w-100" onclick="attachCustomer({{ c.customer_id }})">
+                    <i class="fa-solid fa-link me-1"></i>Attach to Order
+                </button>
+                <button id="redeemBtn" class="btn btn-emerald btn-sm w-100" onclick="redeemPoints({{ c.customer_id }})">
+                    <i class="fa-solid fa-gift me-1"></i>Redeem Points
+                </button>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center py-2">
+            <p class="text-secondary small mb-0">No open orders at this branch to attach or redeem points.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Points History -->
+<div class="card glass-card">
+    <div class="glass-card-header">
+        <h5 class="mb-0 fw-semibold text-light">
+            <i class="fa-solid fa-history text-emerald me-2"></i>Points History
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        {% if c.transactions %}
+        <div class="table-responsive">
+            <table class="table table-glass table-hover mb-0">
+                <thead>
+                    <tr class="text-muted small">
+                        <th>Date & Time</th>
+                        <th>Type</th>
+                        <th class="text-end">Points</th>
+                        <th class="text-end">Balance After</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in c.transactions %}
+                    <tr>
+                        <td class="text-secondary small">{{ t.created_at }}</td>
+                        <td>
+                            <span class="badge {% if t.type == 'earned' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                {{ t.type|title }}
+                            </span>
+                        </td>
+                        <td class="text-end fw-semibold">
+                            <span class="{% if t.type == 'earned' %}text-success{% else %}text-warning{% endif %}">
+                                {% if t.type == 'earned' %}+{% else %}-{% endif %}{{ t.points }}
+                            </span>
+                        </td>
+                        <td class="text-end text-light">{{ t.balance_after }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+            <i class="fa-solid fa-receipt fa-2x text-secondary mb-2"></i>
+            <p class="text-secondary mb-0 small">No transactions yet</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold m-0"><i class="fa-solid fa-star text-emerald me-2"></i>Loyalty</h3>
+        <small class="text-secondary">Search, manage, and reward customers</small>
+    </div>
+    <button class="btn btn-emerald" data-bs-toggle="modal" data-bs-target="#createCustomerModal">
+        <i class="fa-solid fa-user-plus me-1"></i> New Customer
+    </button>
+</div>
+
+<!-- Search Bar Card (AJAX Dynamic Live Search) -->
+<div class="card glass-card mb-4">
+    <div class="card-body">
+        <form onsubmit="event.preventDefault();">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label text-light small fw-semibold">Search Customer</label>
+                    <input type="text" id="customer-search-input" value="{{ search or '' }}"
+                           class="form-control form-dark"
+                           placeholder="Phone number is fastest... e.g. +855 or 016...">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label text-light small fw-semibold">Search By</label>
+                    <select id="search-type-select" class="form-select form-dark">
+                        <option value="phone" {% if search_type=='phone' %}selected{% endif %}>Phone</option>
+                        <option value="email" {% if search_type=='email' %}selected{% endif %}>Email</option>
+                        <option value="name" {% if search_type=='name' %}selected{% endif %}>Name</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="button" id="showAllBtn" class="btn btn-emerald w-100">
+                        Show All
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <button type="button" id="clearSearchBtn" class="btn btn-outline-light w-100">
+                        Clear
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column: Customer List/Search Results -->
+    <div class="col-lg-4">
+        <div class="card glass-card h-100 d-flex flex-column" style="min-height: 550px; max-height: 750px;">
+            <div class="glass-card-header d-flex justify-content-between align-items-center">
+                <span class="text-secondary small fw-semibold" id="results-count">
+                    {% if search %}
+                        {{ customers|length }} result(s)
+                    {% else %}
+                        Recent customers
+                    {% endif %}
+                </span>
+            </div>
+            <!-- Scrollable List Container -->
+            <div class="list-group list-group-flush overflow-auto flex-grow-1" id="customer-results-list" style="max-height: 670px;">
+                {% if not search %}
+                    <!-- Recent customers loaded initially -->
+                    {% if recent_customers %}
+                        {% for c in recent_customers %}
+                        <div class="list-group-item list-group-item-action bg-transparent border-secondary text-light hover-emerald py-3 customer-item {% if selected_customer and selected_customer.customer_id == c.customer_id %}active-customer-item border-start border-emerald border-3 bg-dark bg-opacity-20{% endif %}"
+                             style="cursor:pointer"
+                             data-id="{{ c.customer_id }}"
+                             onclick="loadCustomer({{ c.customer_id }})">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-semibold text-light">{{ c.name }}</div>
+                                    <small class="text-secondary d-block">{{ c.phone }}</small>
+                                </div>
+                                <span class="badge badge-emerald-soft">
+                                    {{ c.points_balance }} pts
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-5 text-secondary">
+                            <i class="fa-solid fa-users fa-2x mb-2 opacity-50"></i>
+                            <p class="mb-0 small">No customers registered yet</p>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <!-- Falling back to backend search query if present in URL (e.g. on redirect) -->
+                    {% if customers %}
+                        {% for c in customers %}
+                        <div class="list-group-item list-group-item-action bg-transparent border-secondary text-light hover-emerald py-3 customer-item {% if selected_customer and selected_customer.customer_id == c.customer_id %}active-customer-item border-start border-emerald border-3 bg-dark bg-opacity-20{% endif %}"
+                             style="cursor:pointer"
+                             data-id="{{ c.customer_id }}"
+                             onclick="loadCustomer({{ c.customer_id }})">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-semibold text-light">{{ c.name }}</div>
+                                    <small class="text-secondary d-block">{{ c.phone }}</small>
+                                </div>
+                                <span class="badge badge-emerald-soft">
+                                    {{ c.points_balance }} pts
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-5 text-secondary">
+                            <i class="fa-solid fa-user-slash fa-2x mb-2 opacity-50"></i>
+                            <p class="mb-0 small">No customers found</p>
+                        </div>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Detail Panel -->
+    <div class="col-lg-8" id="customer-detail-panel">
+        {% if selected_customer %}
+            {{ render_detail_panel(selected_customer, open_orders) }}
+        {% else %}
+            <div class="card glass-card h-100 d-flex align-items-center justify-content-center py-5 text-center" style="min-height: 550px;">
+                <div>
+                    <i class="fa-solid fa-star fa-4x text-secondary mb-3 opacity-20"></i>
+                    <h5 class="text-secondary">Search for a customer to view their loyalty profile</h5>
+                    <p class="text-secondary small mb-0">Select a customer from the list or search above to view details.</p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Customer Modal -->
+<div class="modal fade" id="createCustomerModal" tabindex="-1" aria-labelledby="createCustomerModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="createCustomerModalLabel">
+                    <i class="fa-solid fa-user-plus me-2"></i>New Customer
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('loyalty.create_customer') }}">
+                {{ create_form.hidden_tag() }}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        {{ create_form.name.label(class="form-label text-light") }}
+                        {{ create_form.name(class="form-control form-dark", placeholder="Full Name") }}
+                        {% for e in create_form.name.errors %}
+                            <div class="text-danger small mt-1">{{ e }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="mb-3">
+                        {{ create_form.phone.label(class="form-label text-light") }}
+                        {{ create_form.phone(class="form-control form-dark", placeholder="+1234567890") }}
+                        {% for e in create_form.phone.errors %}
+                            <div class="text-danger small mt-1">{{ e }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="mb-3">
+                        {{ create_form.email.label(class="form-label text-light") }}
+                        {{ create_form.email(class="form-control form-dark", placeholder="Optional") }}
+                        {% for e in create_form.email.errors %}
+                            <div class="text-danger small mt-1">{{ e }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-emerald"><i class="fa-solid fa-save me-1"></i>Save Customer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Global data passed from Jinja
+    const openOrders = [
+        {% for o in open_orders %}
+        {
+            order_id: {{ o.order_id }},
+            table_number: "{{ o.table.table_number if o.table else '' }}",
+            order_type: "{{ o.order_type }}"
+        },
+        {% endfor %}
+    ];
+
+    // Compile recent customer HTML dynamically to restore it quickly
+    const recentCustomersHtml = `
+        {% if recent_customers %}
+            {% for c in recent_customers %}
+            <div class="list-group-item list-group-item-action bg-transparent border-secondary text-light hover-emerald py-3 customer-item"
+                 style="cursor:pointer"
+                 data-id="{{ c.customer_id }}"
+                 onclick="loadCustomer({{ c.customer_id }})">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-semibold text-light">{{ c.name }}</div>
+                        <small class="text-secondary d-block">{{ c.phone }}</small>
+                    </div>
+                    <span class="badge badge-emerald-soft">
+                        {{ c.points_balance }} pts
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center py-5 text-secondary">
+                <i class="fa-solid fa-users fa-2x mb-2 opacity-50"></i>
+                <p class="mb-0 small">No customers registered yet</p>
+            </div>
+        {% endif %}
+    `;
+
+    const searchInput = document.getElementById('customer-search-input');
+    const searchType  = document.getElementById('search-type-select');
+    const resultsList = document.getElementById('customer-results-list');
+    const resultsCount = document.getElementById('results-count');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    const showAllBtn = document.getElementById('showAllBtn');
+
+    let searchTimeout = null;
+    let currentPage = 1;
+    let hasMore = false;
+    let isLoading = false;
+    let currentQuery = '';
+    let currentType = 'phone';
+    let showAllMode = false;
+
+    // Focus input on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        searchInput.focus();
+        
+        // If query parameters are present, sync them in script variables
+        const urlParams = new URLSearchParams(window.location.search);
+        currentQuery = urlParams.get('search') || '';
+        currentType = urlParams.get('search_type') || 'phone';
+    });
+
+    // Press '/' to focus search input, 'Esc' to clear it
+    document.addEventListener('keydown', (e) => {
+        if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+            searchInput.focus();
+        }
+        if (e.key === 'Escape') {
+            clearSearch();
+        }
+    });
+
+    clearSearchBtn.addEventListener('click', clearSearch);
+
+    function clearSearch() {
+        searchInput.value = '';
+        currentQuery = '';
+        showAllMode = false;
+        resultsList.innerHTML = recentCustomersHtml;
+        resultsCount.textContent = 'Recent customers';
+        hasMore = false;
+        currentPage = 1;
+    }
+
+    showAllBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        currentQuery = '';
+        showAllMode = true;
+        currentPage = 1;
+        isLoading = true;
+
+        resultsList.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-success"></div></div>';
+        resultsCount.textContent = 'Loading all...';
+
+        fetch('/api/loyalty/search?all=true&page=1')
+            .then(r => r.json())
+            .then(data => {
+                const searchData = data.data || {};
+                const customers = searchData.customers || [];
+                hasMore = searchData.has_more || false;
+                resultsCount.textContent = `All Customers (${searchData.total || 0})`;
+
+                if (customers.length === 0) {
+                    resultsList.innerHTML = `
+                        <div class="text-center py-5 text-secondary">
+                            <i class="fa-solid fa-users fa-2x mb-2 opacity-50"></i>
+                            <p class="mb-2 small">No customers found</p>
+                            <button class="btn btn-sm btn-emerald mt-2"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#createCustomerModal">
+                                <i class="fa-solid fa-user-plus me-1"></i> Add New Customer
+                            </button>
+                        </div>`;
+                    isLoading = false;
+                    return;
+                }
+
+                resultsList.innerHTML = customers.map(c => `
+                    <div class="list-group-item list-group-item-action bg-transparent border-secondary text-light hover-emerald py-3 customer-item"
+                         style="cursor:pointer"
+                         data-id="${c.customer_id}"
+                         onclick="loadCustomer(${c.customer_id})">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="fw-semibold text-light">${c.name}</div>
+                                <small class="text-secondary d-block">${c.phone}</small>
+                                ${c.email ? `<small class="text-secondary d-block">${c.email}</small>` : ''}
+                            </div>
+                            <div class="text-end">
+                                <span class="badge badge-emerald-soft">${c.points_balance} pts</span>
+                                <div class="text-secondary small mt-1">$${(c.total_spent_cents / 100).toFixed(2)}</div>
+                            </div>
+                        </div>
+                    </div>`).join('');
+
+                isLoading = false;
+            })
+            .catch(err => {
+                console.error(err);
+                resultsList.innerHTML = '<div class="list-group-item bg-transparent text-danger text-center py-5">Error loading customers. Try again.</div>';
+                isLoading = false;
+            });
+    });
+
+    searchInput.addEventListener('input', function () {
+        clearTimeout(searchTimeout);
+        const q = this.value.trim();
+        currentQuery = q;
+
+        if (q.length < 2) {
+            resultsCount.textContent = 'Recent customers';
+            resultsList.innerHTML = recentCustomersHtml;
+            showAllMode = false;
+            hasMore = false;
+            currentPage = 1;
+            return;
+        }
+
+        showAllMode = false;
+
+        // Show loading spinner
+        resultsList.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-success"></div></div>';
+        resultsCount.textContent = 'Searching...';
+
+        searchTimeout = setTimeout(() => {
+            currentType = searchType.value;
+            currentPage = 1;
+            isLoading = true;
+
+            fetch(`/api/loyalty/search?q=${encodeURIComponent(q)}&type=${currentType}&page=1`)
+                .then(r => r.json())
+                .then(data => {
+                    const searchData = data.data || {};
+                    const customers = searchData.customers || [];
+                    hasMore = searchData.has_more || false;
+                    resultsCount.textContent = `${searchData.total || 0} result(s)`;
+
+                    if (customers.length === 0) {
+                        resultsList.innerHTML = `
+                            <div class="text-center py-5 text-secondary">
+                                <i class="fa-solid fa-user-slash fa-2x mb-2 opacity-50"></i>
+                                <p class="mb-2 small">No customers found</p>
+                                <button class="btn btn-sm btn-emerald mt-2"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#createCustomerModal">
+                                    <i class="fa-solid fa-user-plus me-1"></i> Add New Customer
+                                </button>
+                            </div>`;
+                        isLoading = false;
+                        return;
+                    }
+
+                    resultsList.innerHTML = customers.map(c => `
+                        <div class="list-group-item list-group-item-action bg-transparent border-secondary text-light hover-emerald py-3 customer-item"
+                             style="cursor:pointer"
+                             data-id="${c.customer_id}"
+                             onclick="loadCustomer(${c.customer_id})">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-semibold text-light">${c.name}</div>
+                                    <small class="text-secondary d-block">${c.phone}</small>
+                                    ${c.email ? `<small class="text-secondary d-block">${c.email}</small>` : ''}
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge badge-emerald-soft">${c.points_balance} pts</span>
+                                    <div class="text-secondary small mt-1">$${(c.total_spent_cents / 100).toFixed(2)}</div>
+                                </div>
+                            </div>
+                        </div>`).join('');
+
+                    // Auto-select if exactly one result
+                    if (customers.length === 1) {
+                        loadCustomer(customers[0].customer_id);
+                    }
+                    isLoading = false;
+                })
+                .catch(err => {
+                    console.error(err);
+                    resultsList.innerHTML = '<div class="list-group-item bg-transparent text-danger text-center py-5">Search error. Try again.</div>';
+                    isLoading = false;
+                });
+        }, 300);
+    });
+
+    searchType.addEventListener('change', () => {
+        if (searchInput.value.trim().length >= 2) {
+            searchInput.dispatchEvent(new Event('input'));
+        }
+    });
+
+    // Infinite Scroll Pagination
+    resultsList.addEventListener('scroll', () => {
+        if (resultsList.scrollTop + resultsList.clientHeight >= resultsList.scrollHeight - 50) {
+            if (hasMore && !isLoading && (showAllMode || currentQuery.length >= 2)) {
+                loadNextPage();
+            }
+        }
+    });
+
+    function loadNextPage() {
+        isLoading = true;
+        currentPage++;
+
+        const spinner = document.createElement('div');
+        spinner.className = 'text-center py-3 list-spinner';
+        spinner.innerHTML = '<div class="spinner-border spinner-border-sm text-success"></div>';
+        resultsList.appendChild(spinner);
+
+        const url = showAllMode
+            ? `/api/loyalty/search?all=true&page=${currentPage}`
+            : `/api/loyalty/search?q=${encodeURIComponent(currentQuery)}&type=${currentType}&page=${currentPage}`;
+
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                const activeSpinner = resultsList.querySelector('.list-spinner');
+                if (activeSpinner) activeSpinner.remove();
+
+                const searchData = data.data || {};
+                const customers = searchData.customers || [];
+                hasMore = searchData.has_more || false;
+
+                if (customers.length > 0) {
+                    customers.forEach(c => {
+                        const div = document.createElement('div');
+                        div.className = 'list-group-item list-group-item-action bg-transparent border-secondary text-light hover-emerald py-3 customer-item';
+                        div.style.cursor = 'pointer';
+                        div.setAttribute('data-id', c.customer_id);
+                        div.setAttribute('onclick', `loadCustomer(${c.customer_id})`);
+                        div.innerHTML = `
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-semibold text-light">${c.name}</div>
+                                    <small class="text-secondary d-block">${c.phone}</small>
+                                    ${c.email ? `<small class="text-secondary d-block">${c.email}</small>` : ''}
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge badge-emerald-soft">${c.points_balance} pts</span>
+                                    <div class="text-secondary small mt-1">$${(c.total_spent_cents / 100).toFixed(2)}</div>
+                                </div>
+                            </div>
+                        `;
+                        resultsList.appendChild(div);
+                    });
+                }
+                isLoading = false;
+            })
+            .catch(err => {
+                console.error(err);
+                const activeSpinner = resultsList.querySelector('.list-spinner');
+                if (activeSpinner) activeSpinner.remove();
+                isLoading = false;
+            });
+    }
+
+    function loadCustomer(customerId) {
+        // Highlight active list item
+        document.querySelectorAll('.customer-item').forEach(el => {
+            el.classList.remove('active-customer-item', 'border-start', 'border-emerald', 'border-3', 'bg-dark', 'bg-opacity-20');
+        });
+        const selected = document.querySelector(`.customer-item[data-id="${customerId}"]`);
+        if (selected) {
+            selected.classList.add('active-customer-item', 'border-start', 'border-emerald', 'border-3', 'bg-dark', 'bg-opacity-20');
+        }
+
+        const panel = document.getElementById('customer-detail-panel');
+        panel.innerHTML = '<div class="card glass-card h-100 d-flex align-items-center justify-content-center py-5"><div class="spinner-border text-success"></div></div>';
+
+        fetch(`/api/loyalty/${customerId}`)
+            .then(r => r.json())
+            .then(data => {
+                const c = data.data;
+                renderCustomerPanel(c);
+            })
+            .catch(err => {
+                console.error(err);
+                panel.innerHTML = `
+                    <div class="card glass-card h-100 d-flex align-items-center justify-content-center py-5 text-center">
+                        <div class="text-danger">
+                            <i class="fa-solid fa-triangle-exclamation fa-3x mb-3"></i>
+                            <h5>Error loading profile</h5>
+                            <p class="small mb-0">Could not retrieve customer summary. Please try again.</p>
+                        </div>
+                    </div>`;
+            });
+    }
+
+    function renderCustomerPanel(c) {
+        const panel = document.getElementById('customer-detail-panel');
+
+        let openOrdersHtml = '';
+        if (openOrders && openOrders.length > 0) {
+            const optionsHtml = openOrders.map(o => `
+                <option value="${o.order_id}">
+                    ${o.table_number ? `Table ${o.table_number} (Order #${o.order_id})` : `${o.order_type.charAt(0).toUpperCase() + o.order_type.slice(1)} (Order #${o.order_id})`}
+                </option>
+            `).join('');
+
+            openOrdersHtml = `
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-5">
+                        <label for="redeemOrderSelect" class="form-label text-light small fw-semibold">Select Open Order</label>
+                        <select id="redeemOrderSelect" class="form-select form-dark">
+                            ${optionsHtml}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="redeemPointsInput" class="form-label text-light small fw-semibold">Points to Redeem</label>
+                        <input type="number" id="redeemPointsInput" class="form-control form-dark"
+                               min="0" step="100" max="${c.points_balance}" value="0"
+                               placeholder="Multiple of 100">
+                        <small class="text-secondary">Every 100 points = $5.00 discount</small>
+                    </div>
+                    <div class="col-md-3 d-flex flex-column gap-2">
+                        <button id="attachBtn" class="btn btn-outline-light btn-sm w-100" onclick="attachCustomer(${c.customer_id})">
+                            <i class="fa-solid fa-link me-1"></i>Attach to Order
+                        </button>
+                        <button id="redeemBtn" class="btn btn-emerald btn-sm w-100" onclick="redeemPoints(${c.customer_id})">
+                            <i class="fa-solid fa-gift me-1"></i>Redeem Points
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            openOrdersHtml = `
+                <div class="text-center py-2">
+                    <p class="text-secondary small mb-0">No open orders at this branch to attach or redeem points.</p>
+                </div>
+            `;
+        }
+
+        const transactionsHtml = c.transactions && c.transactions.length > 0 ? `
+            <div class="table-responsive">
+                <table class="table table-glass table-hover mb-0">
+                    <thead>
+                        <tr class="text-muted small">
+                            <th>Date & Time</th>
+                            <th>Type</th>
+                            <th class="text-end">Points</th>
+                            <th class="text-end">Balance After</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${c.transactions.map(t => `
+                        <tr>
+                            <td class="text-secondary small">${t.created_at}</td>
+                            <td>
+                                <span class="badge ${t.type === 'earned' ? 'bg-success' : 'bg-warning text-dark'}">${t.type.charAt(0).toUpperCase() + t.type.slice(1)}</span>
+                            </td>
+                            <td class="text-end fw-semibold">
+                                <span class="${t.type === 'earned' ? 'text-success' : 'text-warning'}">
+                                    ${t.type === 'earned' ? '+' : '-'}${t.points}
+                                </span>
+                            </td>
+                            <td class="text-end text-light">${t.balance_after}</td>
+                        </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        ` : `
+            <div class="text-center py-4">
+                <i class="fa-solid fa-receipt fa-2x text-secondary mb-2"></i>
+                <p class="text-secondary mb-0 small">No transactions yet</p>
+            </div>
+        `;
+
+        const nextTierHtml = c.tier.next ? `
+            <div class="mt-4">
+                <div class="d-flex justify-content-between small text-secondary mb-1">
+                    <span>Current Tier: <strong>${c.tier.name}</strong></span>
+                    <span>Next Tier: <strong>${c.tier.next.name}</strong></span>
+                </div>
+                <div class="progress bg-dark bg-opacity-50" style="height: 8px; border-radius: 4px;">
+                    <div class="progress-bar bg-emerald"
+                         role="progressbar"
+                         style="width: ${c.tier.progress_pct}%; border-radius: 4px;"
+                         aria-valuenow="${c.tier.progress_pct}"
+                         aria-valuemin="0"
+                         aria-valuemax="100">
+                    </div>
+                </div>
+                <small class="text-secondary d-block mt-2">
+                    Spent: $${(c.total_spent_cents / 100).toFixed(2)} / $${(c.tier.next.min / 100).toFixed(2)}
+                </small>
+            </div>
+        ` : '';
+
+        panel.innerHTML = `
+            <!-- Profile Card -->
+            <div class="card glass-card mb-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <div class="rounded-circle bg-emerald bg-opacity-20 text-emerald d-flex align-items-center justify-content-center fw-bold"
+                                 style="width: 56px; height: 56px; font-size: 1.4rem;">
+                                ${c.name[0].toUpperCase()}
+                            </div>
+                        </div>
+                        <div class="col">
+                            <h5 class="mb-0 text-light fw-bold">${c.name}</h5>
+                            <small class="text-secondary d-block mt-1">
+                                <i class="fa-solid fa-phone me-1"></i>${c.phone}
+                                ${c.email ? `<span class="mx-2">·</span><i class="fa-solid fa-envelope me-1"></i>${c.email}` : ''}
+                            </small>
+                            <div class="mt-2 d-flex align-items-center gap-2">
+                                <span class="badge badge-emerald-soft">
+                                    ${c.tier.icon} ${c.tier.name}
+                                </span>
+                                <small class="text-secondary">
+                                    Member since ${c.member_since}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    ${nextTierHtml}
+                </div>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="card glass-card text-center p-3 h-100">
+                        <div class="fs-3 fw-bold text-emerald mb-1">${c.points_balance}</div>
+                        <small class="text-secondary uppercase-label">Points Balance</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card glass-card text-center p-3 h-100">
+                        <div class="fs-3 fw-bold text-light mb-1">$${(c.total_spent_cents / 100).toFixed(2)}</div>
+                        <small class="text-secondary uppercase-label">Total Spent</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card glass-card text-center p-3 h-100">
+                        <div class="fs-3 fw-bold text-warning mb-1">${c.transactions ? c.transactions.length : 0}</div>
+                        <small class="text-secondary uppercase-label">Transactions</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order Integration -->
+            <div class="card glass-card mb-4">
+                <div class="glass-card-header">
+                    <h5 class="mb-0 fw-semibold text-light">
+                        <i class="fa-solid fa-link text-emerald me-2"></i>Order Integration
+                    </h5>
+                </div>
+                <div class="card-body">
+                    ${openOrdersHtml}
+                </div>
+            </div>
+
+            <!-- Points History -->
+            <div class="card glass-card">
+                <div class="glass-card-header">
+                    <h5 class="mb-0 fw-semibold text-light">
+                        <i class="fa-solid fa-history text-emerald me-2"></i>Points History
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    ${transactionsHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    function attachCustomer(customerId) {
+        const orderSelect = document.getElementById('redeemOrderSelect');
+        if (!orderSelect) return;
+        const orderId = orderSelect.value;
+        const attachBtn = document.getElementById('attachBtn');
+
+        if (!orderId || !customerId) return;
+
+        attachBtn.disabled = true;
+
+        fetch('/api/loyalty/redeem', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                customer_id: customerId,
+                order_id: orderId,
+                points_to_redeem: 0
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Customer attached to order successfully.');
+                loadCustomer(customerId);
+            } else {
+                alert('Error: ' + data.message);
+                attachBtn.disabled = false;
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            attachBtn.disabled = false;
+        });
+    }
+
+    function redeemPoints(customerId) {
+        const orderSelect = document.getElementById('redeemOrderSelect');
+        if (!orderSelect) return;
+        const orderId = orderSelect.value;
+        const pointsInput = document.getElementById('redeemPointsInput');
+        const points = parseInt(pointsInput.value) || 0;
+        const redeemBtn = document.getElementById('redeemBtn');
+        const maxPoints = parseInt(pointsInput.max) || 0;
+
+        if (!orderId || !customerId) return;
+
+        if (points <= 0) {
+            alert('Please enter points to redeem.');
+            return;
+        }
+        if (points % 100 !== 0) {
+            alert('Points to redeem must be a multiple of 100.');
+            return;
+        }
+        if (points > maxPoints) {
+            alert('Customer has insufficient points balance.');
+            return;
+        }
+
+        redeemBtn.disabled = true;
+
+        fetch('/api/loyalty/redeem', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                customer_id: customerId,
+                order_id: orderId,
+                points_to_redeem: points
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(data.data.message);
+                loadCustomer(customerId);
+                // Dynamically update points balance in list if it's shown there
+                const item = document.querySelector(`.customer-item[data-id="${customerId}"]`);
+                if (item) {
+                    const badge = item.querySelector('.badge');
+                    if (badge) badge.textContent = `${data.data.new_balance} pts`;
+                }
+            } else {
+                alert('Error: ' + data.message);
+                redeemBtn.disabled = false;
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            redeemBtn.disabled = false;
+        });
+    }
+</script>
+{% endblock %}

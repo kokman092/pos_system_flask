@@ -1,0 +1,401 @@
+{% extends "base/admin_base.html" %}
+
+{% block page_title %}Menu Management{% endblock %}
+
+{% block extra_css %}
+<style>
+    .nav-tabs {
+        border-bottom-color: #334155 !important;
+    }
+    .nav-tabs .nav-link {
+        color: #94a3b8 !important;
+        border: 1px solid transparent !important;
+        background: transparent !important;
+        font-weight: 500;
+        padding: 0.75rem 1.25rem;
+        transition: all 0.2s ease;
+    }
+    .nav-tabs .nav-link:hover {
+        color: #cbd5e1 !important;
+        border-color: transparent !important;
+    }
+    .nav-tabs .nav-link.active {
+        color: #10b981 !important;
+        border-color: #334155 #334155 #0f172a !important;
+        background-color: #0f172a !important;
+        border-bottom-color: #0f172a !important;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+    }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-outline-emerald me-2" data-bs-toggle="modal" data-bs-target="#categoryModal" aria-label="Add category">
+    <i class="fa-solid fa-folder-plus me-1"></i> Category
+</button>
+<button class="btn btn-emerald" data-bs-toggle="modal" data-bs-target="#itemModal" aria-label="Add menu item">
+    <i class="fa-solid fa-plus me-1"></i> Menu Item
+</button>
+{% endblock %}
+
+{% block content %}
+<ul class="nav nav-tabs mb-4" id="menuTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#items-tab" type="button" role="tab" aria-selected="true">Menu Items</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#categories-tab" type="button" role="tab" aria-selected="false">Categories</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#modifiers-tab" type="button" role="tab" aria-selected="false">Modifiers</button>
+    </li>
+</ul>
+
+<div class="tab-content" id="menuTabsContent">
+    <!-- Items Tab -->
+    <div class="tab-pane fade show active" id="items-tab" role="tabpanel">
+        <div class="card glass-card">
+            <div class="glass-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-semibold text-light">All Items</h5>
+                <div class="input-group" style="width: 260px;">
+                    <span class="input-group-text bg-dark border-secondary text-secondary"><i class="fa-solid fa-search"></i></span>
+                    <input type="text" class="form-control form-dark" placeholder="Search items..." aria-label="Search menu items">
+                </div>
+            </div>
+            <div class="card-body p-0">
+                {% if items %}
+                <div class="table-responsive">
+                    <table class="table table-glass table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;"></th>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Price</th>
+                                <th>Tax</th>
+                                <th>Availability</th>
+                                <th>Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in items %}
+                            <tr>
+                                <td>
+                                    <img src="{{ url_for('static', filename=item.image_path or 'img/placeholders/menu-placeholder.jpg') }}"
+                                         alt="{{ item.name }}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;" loading="lazy">
+                                </td>
+                                <td class="fw-semibold">{{ item.name }}</td>
+                                <td><span class="badge bg-secondary">{{ item.category.name if item.category else 'Uncategorized' }}</span></td>
+                                <td class="text-emerald">${{ "%.2f"|format(item.price_cents / 100) }}</td>
+                                <td>{{ item.tax_pct }}%</td>
+                                <td>
+                                    {% if item.is_available %}
+                                        <span class="badge bg-success">Available</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">Out of stock</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.is_active %}
+                                        <span class="badge bg-secondary">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-light edit-item-btn" 
+                                            data-id="{{ item.item_id }}" 
+                                            data-name="{{ item.name }}"
+                                            data-category-id="{{ item.category_id }}"
+                                            data-price="{{ '%.2f'|format(item.price_cents / 100) }}"
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#editItemModal"
+                                            aria-label="Edit {{ item.name }}">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                    {% set icon = 'fa-solid fa-burger' %}
+                    {% set title = 'No menu items yet' %}
+                    {% set message = 'Start by adding your first menu item.' %}
+                    {% include 'partials/empty_state.html' %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Categories Tab -->
+    <div class="tab-pane fade" id="categories-tab" role="tabpanel">
+        {% if categories %}
+        <div class="row g-3">
+            {% for cat in categories %}
+            <div class="col-md-4 col-lg-3">
+                <div class="card glass-card p-3 position-relative">
+                    {% if cat.image_path %}
+                    <img src="{{ url_for('static', filename=cat.image_path) }}" alt="{{ cat.name }}" class="rounded mb-2 w-100" style="height: 120px; object-fit: cover;" loading="lazy">
+                    {% endif %}
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <h6 class="fw-bold mb-0 text-light text-truncate">{{ cat.name }}</h6>
+                        <button class="btn btn-sm btn-outline-light edit-category-btn" 
+                                data-id="{{ cat.category_id }}" 
+                                data-name="{{ cat.name }}"
+                                data-bs-toggle="modal" 
+                                data-bs-target="#editCategoryModal"
+                                aria-label="Edit category {{ cat.name }}">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+            {% set icon = 'fa-solid fa-list' %}
+            {% set title = 'No categories' %}
+            {% set message = 'Group your menu items by category.' %}
+            {% include 'partials/empty_state.html' %}
+        {% endif %}
+    </div>
+
+    <!-- Modifiers Tab -->
+    <div class="tab-pane fade" id="modifiers-tab" role="tabpanel">
+        {% set icon = 'fa-solid fa-layer-group' %}
+        {% set title = 'No modifiers' %}
+        {% set message = 'Add modifiers like sizes, add-ons, or cooking temperatures.' %}
+        {% include 'partials/empty_state.html' %}
+    </div>
+</div>
+
+<!-- Modals -->
+
+<!-- 1. Add Category Modal -->
+<div class="modal fade" id="categoryModal" tabindex="-1" aria-labelledby="categoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="categoryModalLabel">Add Category</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addCategoryForm" action="{{ url_for('menu.create_category') }}" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="addCategoryName" class="form-label text-light">Category Name</label>
+                        <input type="text" class="form-control form-dark" id="addCategoryName" name="name" required placeholder="e.g. Burgers">
+                    </div>
+                    <div class="mb-3">
+                        <label for="addCategoryImage" class="form-label text-light">Category Image</label>
+                        <input type="file" class="form-control form-dark" id="addCategoryImage" name="image" accept="image/*">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="submit" form="addCategoryForm" class="btn btn-emerald">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Edit Category Modal -->
+<div class="modal fade" id="editCategoryModal" tabindex="-1" aria-labelledby="editCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="editCategoryModalLabel">Edit Category</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editCategoryForm" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="editCategoryName" class="form-label text-light">Category Name</label>
+                        <input type="text" class="form-control form-dark" id="editCategoryName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editCategoryImage" class="form-label text-light">Category Image</label>
+                        <input type="file" class="form-control form-dark" id="editCategoryImage" name="image" accept="image/*">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary justify-content-between">
+                <div>
+                    <form id="deleteCategoryForm" method="POST" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Are you sure you want to remove this category?')">Remove</button>
+                    </form>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" form="editCategoryForm" class="btn btn-emerald">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 3. Add Menu Item Modal -->
+<div class="modal fade" id="itemModal" tabindex="-1" aria-labelledby="itemModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="itemModalLabel">Add Menu Item</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addItemForm" action="{{ url_for('menu.create_item') }}" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="addItemName" class="form-label text-light">Item Name</label>
+                        <input type="text" class="form-control form-dark" id="addItemName" name="name" required placeholder="e.g. Classic Burger">
+                    </div>
+                    <div class="mb-3">
+                        <label for="addItemCategory" class="form-label text-light">Category</label>
+                        <select class="form-select form-dark" id="addItemCategory" name="category_id" required>
+                            <option value="" disabled selected>Select Category</option>
+                            {% for cat in categories %}
+                            <option value="{{ cat.category_id }}">{{ cat.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="addItemPrice" class="form-label text-light">Price ($)</label>
+                        <input type="number" step="0.01" min="0" class="form-control form-dark" id="addItemPrice" name="price" required placeholder="0.00">
+                    </div>
+                    <div class="mb-3">
+                        <label for="addItemImage" class="form-label text-light">Item Image</label>
+                        <input type="file" class="form-control form-dark" id="addItemImage" name="image" accept="image/*">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="submit" form="addItemForm" class="btn btn-emerald">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 4. Edit Menu Item Modal -->
+<div class="modal fade" id="editItemModal" tabindex="-1" aria-labelledby="editItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="editItemModalLabel">Edit Menu Item</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editItemForm" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="editItemName" class="form-label text-light">Item Name</label>
+                        <input type="text" class="form-control form-dark" id="editItemName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editItemCategory" class="form-label text-light">Category</label>
+                        <select class="form-select form-dark" id="editItemCategory" name="category_id" required>
+                            {% for cat in categories %}
+                            <option value="{{ cat.category_id }}">{{ cat.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editItemPrice" class="form-label text-light">Price ($)</label>
+                        <input type="number" step="0.01" min="0" class="form-control form-dark" id="editItemPrice" name="price" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editItemImage" class="form-label text-light">Item Image</label>
+                        <input type="file" class="form-control form-dark" id="editItemImage" name="image" accept="image/*">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary justify-content-between">
+                <div>
+                    <form id="deleteItemForm" method="POST" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Are you sure you want to remove this item?')">Remove</button>
+                    </form>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" form="editItemForm" class="btn btn-emerald">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // 1. Edit Category Modal population
+        const editCategoryModal = document.getElementById('editCategoryModal');
+        if (editCategoryModal) {
+            editCategoryModal.addEventListener('show.bs.modal', (event) => {
+                const button = event.relatedTarget;
+                const id = button.getAttribute('data-id');
+                const name = button.getAttribute('data-name');
+                
+                const form = editCategoryModal.querySelector('#editCategoryForm');
+                const deleteForm = editCategoryModal.querySelector('#deleteCategoryForm');
+                const nameInput = editCategoryModal.querySelector('#editCategoryName');
+                
+                form.action = `/menu/categories/${id}/edit`;
+                deleteForm.action = `/menu/categories/${id}/delete`;
+                nameInput.value = name;
+            });
+        }
+
+        // 2. Edit Menu Item Modal population
+        const editItemModal = document.getElementById('editItemModal');
+        if (editItemModal) {
+            editItemModal.addEventListener('show.bs.modal', (event) => {
+                const button = event.relatedTarget;
+                const id = button.getAttribute('data-id');
+                const name = button.getAttribute('data-name');
+                const categoryId = button.getAttribute('data-category-id');
+                const price = button.getAttribute('data-price');
+                
+                const form = editItemModal.querySelector('#editItemForm');
+                const deleteForm = editItemModal.querySelector('#deleteItemForm');
+                const nameInput = editItemModal.querySelector('#editItemName');
+                const categorySelect = editItemModal.querySelector('#editItemCategory');
+                const priceInput = editItemModal.querySelector('#editItemPrice');
+                
+                form.action = `/menu/items/${id}/edit`;
+                deleteForm.action = `/menu/items/${id}/delete`;
+                nameInput.value = name;
+                categorySelect.value = categoryId;
+                priceInput.value = price;
+            });
+        }
+        
+        // Search function for items
+        const searchInput = document.querySelector('input[placeholder="Search items..."]');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const term = e.target.value.toLowerCase();
+                const rows = document.querySelectorAll('tbody tr');
+                rows.forEach(row => {
+                    const name = row.querySelector('.fw-semibold').textContent.toLowerCase();
+                    const category = row.querySelector('.badge').textContent.toLowerCase();
+                    if (name.includes(term) || category.includes(term)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
+    });
+</script>
+{% endblock %}

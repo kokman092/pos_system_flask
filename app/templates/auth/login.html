@@ -1,0 +1,43 @@
+{% extends "base/base.html" %}
+
+{% block body %}
+<div class="d-flex align-items-center justify-content-center vh-100">
+    <div class="card glass-card shadow-lg p-4 fade-in-up" style="max-width: 400px; width: 100%;">
+        <div class="text-center mb-4">
+            <h2 class="text-emerald fw-bold tracking-wide"><i class="fa-solid fa-bolt me-2"></i>AURA POS</h2>
+            <p class="text-secondary mb-0">Sign in to your account</p>
+        </div>
+
+        {% include 'partials/flash_messages.html' %}
+
+        <form method="POST" action="{{ url_for('auth.login') }}">
+            {{ form.csrf_token }}
+            <div class="mb-3">
+                {{ form.email.label(class="form-label text-light") }}
+                {{ form.email(class="form-control form-dark", placeholder="name@example.com", autocomplete="email") }}
+                {% for error in form.email.errors %}
+                    <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <div class="mb-3">
+                {{ form.password.label(class="form-label text-light") }}
+                {{ form.password(class="form-control form-dark", placeholder="••••••••", autocomplete="current-password") }}
+                {% for error in form.password.errors %}
+                    <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="form-check">
+                    {{ form.remember_me(class="form-check-input") }}
+                    {{ form.remember_me.label(class="form-check-label text-secondary small") }}
+                </div>
+                <a href="{{ url_for('auth.forgot') }}" class="text-emerald text-decoration-none small">Forgot password?</a>
+            </div>
+
+            <button type="submit" class="btn btn-emerald w-100 fw-bold py-2">Sign In</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

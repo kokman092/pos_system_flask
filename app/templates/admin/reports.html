@@ -1,0 +1,686 @@
+{% extends "base/admin_base.html" %}
+
+{% block page_title %}Reports & Analytics{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="fa-solid fa-circle-exclamation me-2"></i>{{ error }}
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+<!-- Control Panel / Date Selector -->
+<div class="card glass-card mb-4" style="position: relative; z-index: 1050; overflow: visible !important;">
+    <div class="card-body py-3" style="overflow: visible !important;">
+        <div class="row g-3 align-items-center">
+            <div class="col-md-3">
+                <label for="reportPeriod" class="form-label small text-secondary mb-1">Reporting Period</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-dark border-secondary text-secondary"><i class="fa-solid fa-clock"></i></span>
+                    <select id="reportPeriod" class="form-select form-dark" aria-label="Select reporting period">
+                        <option value="daily" {% if selected_period == 'daily' %}selected{% endif %}>Daily</option>
+                        <option value="weekly" {% if selected_period == 'weekly' %}selected{% endif %}>Weekly</option>
+                        <option value="monthly" {% if selected_period == 'monthly' %}selected{% endif %}>Monthly</option>
+                        <option value="yearly" {% if selected_period == 'yearly' %}selected{% endif %}>Yearly</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label for="reportDate" class="form-label small text-secondary mb-1" id="lblReportDate">Select Report Date</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-dark border-secondary text-secondary"><i class="fa-solid fa-calendar"></i></span>
+                    <input type="date" id="reportDate" class="form-control form-dark" aria-label="Select report date" value="{{ selected_date }}">
+                </div>
+            </div>
+            <div class="col-md-6 text-md-end d-flex align-items-end justify-content-md-end gap-2 mt-md-4">
+                <button type="button" class="btn btn-emerald" id="btnRefresh" aria-label="Refresh report data">
+                    <i class="fa-solid fa-rotate me-2"></i>Refresh Data
+                </button>
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="dropdownExport" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false">
+                        <i class="fa-solid fa-download me-2"></i>Export Reports
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end" aria-labelledby="dropdownExport" style="min-width: 240px;">
+                        <li class="dropdown-header text-uppercase text-secondary small fw-bold">PDF Summaries</li>
+                        <li><a class="dropdown-item" id="exportDailyPdf" href="#" target="_blank"><i class="fa-solid fa-file-pdf me-2 text-danger"></i>Daily Summary (PDF)</a></li>
+                        <li><a class="dropdown-item" id="exportMorningPdf" href="#" target="_blank"><i class="fa-solid fa-file-pdf me-2 text-warning"></i>Morning Shift (PDF)</a></li>
+                        <li><a class="dropdown-item" id="exportAfternoonPdf" href="#" target="_blank"><i class="fa-solid fa-file-pdf me-2 text-info"></i>Afternoon Shift (PDF)</a></li>
+                        <li><a class="dropdown-item" id="exportNightPdf" href="#" target="_blank"><i class="fa-solid fa-file-pdf me-2 text-emerald"></i>Night Shift (PDF)</a></li>
+                        <li><hr class="dropdown-divider border-secondary"></li>
+                        
+                        <li class="dropdown-header text-uppercase text-secondary small fw-bold">Inventory Valuation</li>
+                        <li><a class="dropdown-item" id="exportInventoryCsv" href="#" target="_blank"><i class="fa-solid fa-file-csv me-2 text-emerald"></i>Valuation (CSV)</a></li>
+                        <li><a class="dropdown-item" id="exportInventoryXlsx" href="#" target="_blank"><i class="fa-solid fa-file-excel me-2 text-info"></i>Valuation (Excel)</a></li>
+                        <li><hr class="dropdown-divider border-secondary"></li>
+                        
+                        <li class="dropdown-header text-uppercase text-secondary small fw-bold">Legacy Summary API</li>
+                        <li><a class="dropdown-item" id="exportDaily" href="#" target="_blank"><i class="fa-solid fa-calendar-day me-2 text-emerald"></i>Daily Summary CSV</a></li>
+                        <li><a class="dropdown-item" id="exportRevenue" href="#" target="_blank"><i class="fa-solid fa-chart-line me-2 text-info"></i>Revenue Trend CSV</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if daily %}
+<!-- Key Metric Summary Cards -->
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4 mb-4">
+    <!-- Revenue -->
+    <div class="col">
+        <div class="card glass-card border-start border-4 border-emerald h-100 transition-hover">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-secondary small mb-1 fw-semibold tracking-wider">TOTAL REVENUE</p>
+                        <h3 class="mb-1 fw-bold text-light" id="statRevenue">${{ "%.2f"|format(daily.total_revenue_cents / 100) }}</h3>
+                        <span class="text-emerald small"><i class="fa-solid fa-receipt me-1"></i>Avg order: $<span id="statAvgTicket">{{ "%.2f"|format(daily.avg_order_cents / 100) }}</span></span>
+                    </div>
+                    <div class="p-3 bg-emerald bg-opacity-10 rounded-circle text-emerald">
+                        <i class="fa-solid fa-wallet fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Orders -->
+    <div class="col">
+        <div class="card glass-card border-start border-4 border-info h-100 transition-hover">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-secondary small mb-1 fw-semibold tracking-wider">ORDERS</p>
+                        <h3 class="mb-1 fw-bold text-light" id="statOrders">{{ daily.total_orders }}</h3>
+                        <span class="text-info small"><i class="fa-solid fa-users me-1"></i>Covers: <span id="statCustomers">{{ daily.total_customers }}</span></span>
+                    </div>
+                    <div class="p-3 bg-info bg-opacity-10 rounded-circle text-info">
+                        <i class="fa-solid fa-shopping-bag fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Active Tables -->
+    <div class="col">
+        <div class="card glass-card border-start border-4 border-warning h-100 transition-hover">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-secondary small mb-1 fw-semibold tracking-wider">ACTIVE TABLES</p>
+                        <h3 class="mb-1 fw-bold text-light" id="statActiveTables">{{ daily.active_tables }}</h3>
+                        <span class="text-warning small"><i class="fa-solid fa-triangle-exclamation me-1"></i>Low Stock: <span id="statLowStock">{{ daily.low_stock_count }}</span></span>
+                    </div>
+                    <div class="p-3 bg-warning bg-opacity-10 rounded-circle text-warning">
+                        <i class="fa-solid fa-table-cells fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Waste Cost -->
+    <div class="col">
+        <div class="card glass-card border-start border-4 border-danger h-100 transition-hover">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="d-flex align-items-center gap-2">
+                            <p class="text-secondary small mb-1 fw-semibold tracking-wider">WASTE COST</p>
+                            <div class="dropdown">
+                                <a href="#" class="text-secondary small" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Export waste cost report"><i class="fa-solid fa-download"></i></a>
+                                <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+                                    <li><a class="dropdown-item" id="exportWasteCsv" href="#" target="_blank"><i class="fa-solid fa-file-csv me-2 text-emerald"></i>Export CSV</a></li>
+                                    <li><a class="dropdown-item" id="exportWasteXlsx" href="#" target="_blank"><i class="fa-solid fa-file-excel me-2 text-info"></i>Export Excel</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <h3 class="mb-1 fw-bold text-light" id="statWaste">${{ "%.2f"|format(daily.waste_cost_cents / 100) }}</h3>
+                        <span class="text-danger small"><i class="fa-solid fa-trash-can me-1"></i>Food Waste Loss</span>
+                    </div>
+                    <div class="p-3 bg-danger bg-opacity-10 rounded-circle text-danger">
+                        <i class="fa-solid fa-trash-can fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if dashboard %}
+<!-- ── New Analytics Widgets Row ──────────────────────────────────────── -->
+<div class="row g-4 mb-4">
+
+    <!-- Widget 1: Revenue Comparison vs Previous Period -->
+    <div class="col-lg-4">
+        <div class="card glass-card h-100">
+            <div class="glass-card-header">
+                <h5 class="mb-0 fw-semibold text-light">
+                    <i class="fa-solid fa-chart-simple text-emerald me-2"></i>Revenue vs Previous
+                </h5>
+            </div>
+            <div class="card-body d-flex flex-column gap-3">
+                {% set rc = dashboard.revenue_comparison %}
+                <!-- Today vs Yesterday -->
+                <div class="d-flex align-items-center justify-content-between p-3 rounded" style="background: rgba(16,185,129,0.07); border: 1px solid rgba(16,185,129,0.15);">
+                    <div>
+                        <p class="text-secondary small mb-1 fw-semibold">TODAY</p>
+                        <h4 class="mb-0 fw-bold text-light">${{ "%.2f"|format(rc.today_cents / 100) }}</h4>
+                        <small class="text-secondary">vs ${{ "%.2f"|format(rc.yesterday_cents / 100) }} yesterday</small>
+                    </div>
+                    <div class="text-end">
+                        {% if rc.today_pct_change >= 0 %}
+                        <span class="badge fs-6" style="background: rgba(16,185,129,0.2); color: #10b981;">
+                            <i class="fa-solid fa-arrow-trend-up me-1"></i>+{{ rc.today_pct_change }}%
+                        </span>
+                        {% else %}
+                        <span class="badge fs-6" style="background: rgba(220,38,38,0.2); color: #f87171;">
+                            <i class="fa-solid fa-arrow-trend-down me-1"></i>{{ rc.today_pct_change }}%
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <!-- This Week vs Last Week -->
+                <div class="d-flex align-items-center justify-content-between p-3 rounded" style="background: rgba(99,102,241,0.07); border: 1px solid rgba(99,102,241,0.15);">
+                    <div>
+                        <p class="text-secondary small mb-1 fw-semibold">THIS WEEK</p>
+                        <h4 class="mb-0 fw-bold text-light">${{ "%.2f"|format(rc.week_cents / 100) }}</h4>
+                        <small class="text-secondary">vs ${{ "%.2f"|format(rc.last_week_cents / 100) }} last week</small>
+                    </div>
+                    <div class="text-end">
+                        {% if rc.week_pct_change >= 0 %}
+                        <span class="badge fs-6" style="background: rgba(99,102,241,0.2); color: #a5b4fc;">
+                            <i class="fa-solid fa-arrow-trend-up me-1"></i>+{{ rc.week_pct_change }}%
+                        </span>
+                        {% else %}
+                        <span class="badge fs-6" style="background: rgba(220,38,38,0.2); color: #f87171;">
+                            <i class="fa-solid fa-arrow-trend-down me-1"></i>{{ rc.week_pct_change }}%
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Widget 2: Live Order Status -->
+    <div class="col-lg-4">
+        <div class="card glass-card h-100">
+            <div class="glass-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-semibold text-light">
+                    <i class="fa-solid fa-circle-dot text-success me-2" style="animation: pulse 1.5s infinite;"></i>Live Order Status
+                </h5>
+                <small class="text-secondary" id="order-status-updated">Live</small>
+            </div>
+            <div class="card-body d-flex flex-column justify-content-center gap-4">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="p-3 rounded-circle" style="background: rgba(16,185,129,0.12);">
+                        <i class="fa-solid fa-list-check fa-lg text-emerald"></i>
+                    </div>
+                    <div>
+                        <p class="text-secondary small mb-0 fw-semibold">OPEN ORDERS</p>
+                        <h3 class="mb-0 fw-bold text-light" id="live-open-orders">{{ dashboard.open_orders }}</h3>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="p-3 rounded-circle" style="background: rgba(245,158,11,0.12);">
+                        <i class="fa-solid fa-fire-burner fa-lg text-warning"></i>
+                    </div>
+                    <div>
+                        <p class="text-secondary small mb-0 fw-semibold">IN KITCHEN</p>
+                        <h3 class="mb-0 fw-bold text-light" id="live-kitchen-orders">{{ dashboard.kitchen_orders }}</h3>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="p-3 rounded-circle" style="background: rgba(99,102,241,0.12);">
+                        <i class="fa-solid fa-triangle-exclamation fa-lg" style="color: #a5b4fc;"></i>
+                    </div>
+                    <div>
+                        <p class="text-secondary small mb-0 fw-semibold">LOW STOCK ALERTS</p>
+                        <h3 class="mb-0 fw-bold text-light" id="live-low-stock">{{ dashboard.low_stock_count }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Widget 3: Customer Loyalty Snapshot -->
+    <div class="col-lg-4">
+        <div class="card glass-card h-100">
+            <div class="glass-card-header">
+                <h5 class="mb-0 fw-semibold text-light">
+                    <i class="fa-solid fa-star text-warning me-2"></i>Loyalty Snapshot
+                </h5>
+            </div>
+            <div class="card-body d-flex flex-column justify-content-center gap-4">
+                {% set cs = dashboard.customer_snapshot %}
+                <div class="d-flex align-items-center gap-3">
+                    <div class="p-3 rounded-circle" style="background: rgba(245,158,11,0.12);">
+                        <i class="fa-solid fa-users fa-lg text-warning"></i>
+                    </div>
+                    <div>
+                        <p class="text-secondary small mb-0 fw-semibold">TOTAL CUSTOMERS</p>
+                        <h3 class="mb-0 fw-bold text-light">{{ cs.total_customers }}</h3>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="p-3 rounded-circle" style="background: rgba(16,185,129,0.12);">
+                        <i class="fa-solid fa-user-plus fa-lg text-emerald"></i>
+                    </div>
+                    <div>
+                        <p class="text-secondary small mb-0 fw-semibold">NEW THIS MONTH</p>
+                        <h3 class="mb-0 fw-bold text-light">{{ cs.new_this_month }}</h3>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="p-3 rounded-circle" style="background: rgba(99,102,241,0.12);">
+                        <i class="fa-solid fa-coins fa-lg" style="color: #a5b4fc;"></i>
+                    </div>
+                    <div>
+                        <p class="text-secondary small mb-0 fw-semibold">POINTS OUTSTANDING</p>
+                        <h3 class="mb-0 fw-bold text-light">{{ "{:,}".format(cs.points_outstanding) }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endif %}
+
+<!-- Primary Content Grid -->
+<div class="row g-4 mb-4">
+    <!-- Left Column (Trends & Methods) -->
+    <div class="col-lg-7">
+        <div class="card glass-card mb-4">
+            <div class="glass-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-semibold text-light">
+                    <i class="fa-solid fa-chart-line text-info me-2"></i>
+                    {% if selected_period == 'weekly' %}
+                        Revenue Trend (8 Weeks)
+                    {% elif selected_period == 'monthly' %}
+                        Revenue Trend (12 Months)
+                    {% elif selected_period == 'yearly' %}
+                        Revenue Trend (5 Years)
+                    {% else %}
+                        Revenue Trend (14 Days)
+                    {% endif %}
+                </h5>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fa-solid fa-download me-1"></i>Export
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+                        <li><a class="dropdown-item" id="exportRevCsv" href="#" target="_blank"><i class="fa-solid fa-file-csv me-2 text-emerald"></i>Export CSV</a></li>
+                        <li><a class="dropdown-item" id="exportRevXlsx" href="#" target="_blank"><i class="fa-solid fa-file-excel me-2 text-info"></i>Export Excel</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="card-body">
+                <div style="position: relative; height: 280px;">
+                    <canvas id="revenueTrendChart" aria-label="14-day revenue bar chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="card glass-card">
+            <div class="glass-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-semibold text-light"><i class="fa-solid fa-chart-pie text-emerald me-2"></i>Payment Methods Breakdown</h5>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fa-solid fa-download me-1"></i>Export
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+                        <li><a class="dropdown-item" id="exportPayCsv" href="#" target="_blank"><i class="fa-solid fa-file-csv me-2 text-emerald"></i>Export CSV</a></li>
+                        <li><a class="dropdown-item" id="exportPayXlsx" href="#" target="_blank"><i class="fa-solid fa-file-excel me-2 text-info"></i>Export Excel</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <div style="position: relative; height: 200px;">
+                            <canvas id="paymentMethodChart" aria-label="Payment methods chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="table-responsive">
+                            <table class="table table-glass table-hover table-sm mb-0" id="paymentDetailsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Method</th>
+                                        <th class="text-end">Trans.</th>
+                                        <th class="text-end">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for m in daily.payment_methods %}
+                                    <tr>
+                                        <td class="fw-semibold text-capitalize">{{ m.method.replace('_', ' ') }}</td>
+                                        <td class="text-end">{{ m.count }}</td>
+                                        <td class="text-end text-emerald">${{ "%.2f"|format(m.total_cents / 100) }}</td>
+                                    </tr>
+                                    {% else %}
+                                    <tr><td colspan="3" class="text-center text-secondary py-3">No payments for this date</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column (Items & Shift & Inventory) -->
+    <div class="col-lg-5">
+        <!-- Item Popularity -->
+        <div class="card glass-card mb-4">
+            <div class="glass-card-header d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <h5 class="mb-0 fw-semibold text-light"><i class="fa-solid fa-fire text-warning me-2"></i>Top Selling Items</h5>
+                    <span class="badge bg-warning text-dark small">Last 7 Days</span>
+                </div>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fa-solid fa-download me-1"></i>Export
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+                        <li><a class="dropdown-item" id="exportItemsCsv" href="#" target="_blank"><i class="fa-solid fa-file-csv me-2 text-emerald"></i>Export CSV</a></li>
+                        <li><a class="dropdown-item" id="exportItemsXlsx" href="#" target="_blank"><i class="fa-solid fa-file-excel me-2 text-info"></i>Export Excel</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                    <table class="table table-glass table-hover mb-0" id="itemPopTable">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Category</th>
+                                <th class="text-end">Qty</th>
+                                <th class="text-end">Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in top_items %}
+                            <tr>
+                                <td class="fw-semibold text-secondary">{{ item.item_name }}</td>
+                                <td><span class="badge bg-secondary bg-opacity-25 text-secondary">{{ item.category_name }}</span></td>
+                                <td class="text-end fw-bold text-light">{{ item.qty_sold }}</td>
+                                <td class="text-end text-emerald font-monospace">${{ "%.2f"|format(item.revenue_cents / 100) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center text-secondary py-4">No data</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shift Performance -->
+        <div class="card glass-card mb-4">
+            <div class="glass-card-header">
+                <h5 class="mb-0 fw-semibold text-light"><i class="fa-solid fa-clock text-info me-2"></i>Shift Performance</h5>
+            </div>
+            <div class="card-body">
+                {% set morning_rev = shifts.morning.total_revenue_cents / 100 %}
+                {% set afternoon_rev = shifts.afternoon.total_revenue_cents / 100 %}
+                {% set night_rev = shifts.night.total_revenue_cents / 100 %}
+                {% set max_rev = [morning_rev, afternoon_rev, night_rev, 1.0] | max %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="small fw-semibold">Morning (00:00 - 12:00)</span>
+                        <span class="small text-emerald" id="shiftMorningRev">${{ "%.2f"|format(morning_rev) }} ({{ shifts.morning.total_orders }} orders)</span>
+                    </div>
+                    <div class="progress bg-secondary bg-opacity-25" style="height: 8px;">
+                        <div class="progress-bar bg-emerald" id="shiftMorningBar" role="progressbar" style="width: {{ (morning_rev / max_rev * 100)|round }}%;" aria-valuenow="{{ (morning_rev / max_rev * 100)|round }}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="small fw-semibold">Afternoon (12:00 - 18:00)</span>
+                        <span class="small text-info" id="shiftAfternoonRev">${{ "%.2f"|format(afternoon_rev) }} ({{ shifts.afternoon.total_orders }} orders)</span>
+                    </div>
+                    <div class="progress bg-secondary bg-opacity-25" style="height: 8px;">
+                        <div class="progress-bar bg-info" id="shiftAfternoonBar" role="progressbar" style="width: {{ (afternoon_rev / max_rev * 100)|round }}%;" aria-valuenow="{{ (afternoon_rev / max_rev * 100)|round }}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="small fw-semibold">Night (18:00 - 24:00)</span>
+                        <span class="small text-warning" id="shiftNightRev">${{ "%.2f"|format(night_rev) }} ({{ shifts.night.total_orders }} orders)</span>
+                    </div>
+                    <div class="progress bg-secondary bg-opacity-25" style="height: 8px;">
+                        <div class="progress-bar bg-warning" id="shiftNightBar" role="progressbar" style="width: {{ (night_rev / max_rev * 100)|round }}%;" aria-valuenow="{{ (night_rev / max_rev * 100)|round }}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Low Stock Alerts -->
+        <div class="card glass-card">
+            <div class="glass-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-semibold text-light"><i class="fa-solid fa-triangle-exclamation text-danger me-2"></i>Low Stock Alerts</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                    <table class="table table-glass table-hover mb-0" id="lowStockTable">
+                        <thead>
+                            <tr>
+                                <th>Ingredient</th>
+                                <th class="text-end">Stock</th>
+                                <th class="text-end">Min</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in low_stock %}
+                            <tr>
+                                <td class="fw-semibold text-secondary">{{ item.ingredient_name }}</td>
+                                <td class="text-end text-danger fw-bold">{{ item.qty_in_stock }}</td>
+                                <td class="text-end text-secondary">{{ item.reorder_level }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="3" class="text-center text-success py-3"><i class="fa-solid fa-circle-check me-2"></i>All stock levels normal</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+    {% set icon = 'fa-solid fa-chart-pie' %}
+    {% set title = 'Reports unavailable' %}
+    {% set message = 'Unable to load report metrics. Please verify backend configurations.' %}
+    {% include 'partials/empty_state.html' %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<style>
+.transition-hover {
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.transition-hover:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+.tracking-wider {
+    letter-spacing: 0.05em;
+}
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.06)';
+
+    const dateInput = document.getElementById('reportDate');
+    const periodSelect = document.getElementById('reportPeriod');
+
+    function updateDateLabel() {
+        const period = periodSelect.value;
+        const lbl = document.getElementById('lblReportDate');
+        if (period === 'weekly') {
+            lbl.textContent = 'Select Week (Pick Any Day)';
+        } else if (period === 'monthly') {
+            lbl.textContent = 'Select Month (Pick Any Day)';
+        } else if (period === 'yearly') {
+            lbl.textContent = 'Select Year (Pick Any Day)';
+        } else {
+            lbl.textContent = 'Select Report Date';
+        }
+    }
+    updateDateLabel();
+
+    function updateExportLinks() {
+        const selectedDate = dateInput.value;
+        const selectedPeriod = periodSelect.value;
+
+        // Old legacy CSV links (maintained for compatibility)
+        document.getElementById('exportDaily').href = `/reports/api/daily?date=${selectedDate}&period=${selectedPeriod}`;
+        document.getElementById('exportRevenue').href = `/reports/api/revenue?start_date=${selectedDate}&end_date=${selectedDate}&period=${selectedPeriod}`;
+
+        // Top main action bar exports
+        document.getElementById('exportDailyPdf').href = `/reports/export/daily.pdf?date=${selectedDate}`;
+        document.getElementById('exportMorningPdf').href = `/reports/export/shift.pdf?date=${selectedDate}&shift=morning`;
+        document.getElementById('exportAfternoonPdf').href = `/reports/export/shift.pdf?date=${selectedDate}&shift=afternoon`;
+        document.getElementById('exportNightPdf').href = `/reports/export/shift.pdf?date=${selectedDate}&shift=night`;
+        
+        document.getElementById('exportInventoryCsv').href = `/reports/export/inventory.csv`;
+        document.getElementById('exportInventoryXlsx').href = `/reports/export/inventory.xlsx`;
+
+        // Section level exports
+        document.getElementById('exportRevCsv').href = `/reports/export/revenue.csv?start_date=${selectedDate}&end_date=${selectedDate}&period=${selectedPeriod}`;
+        document.getElementById('exportRevXlsx').href = `/reports/export/revenue.xlsx?start_date=${selectedDate}&end_date=${selectedDate}&period=${selectedPeriod}`;
+        
+        document.getElementById('exportPayCsv').href = `/reports/export/payments.csv?start_date=${selectedDate}&end_date=${selectedDate}`;
+        document.getElementById('exportPayXlsx').href = `/reports/export/payments.xlsx?start_date=${selectedDate}&end_date=${selectedDate}`;
+        
+        document.getElementById('exportItemsCsv').href = `/reports/export/items.csv?start_date=${selectedDate}&end_date=${selectedDate}`;
+        document.getElementById('exportItemsXlsx').href = `/reports/export/items.xlsx?start_date=${selectedDate}&end_date=${selectedDate}`;
+
+        // Waste Cost
+        document.getElementById('exportWasteCsv').href = `/reports/export/waste.csv?start_date=${selectedDate}&end_date=${selectedDate}`;
+        document.getElementById('exportWasteXlsx').href = `/reports/export/waste.xlsx?start_date=${selectedDate}&end_date=${selectedDate}`;
+    }
+    updateExportLinks();
+
+    {% if daily %}
+    // 1. Payment Method Doughnut Chart (embedded from Python)
+    const paymentMethods = {{ daily.payment_methods|tojson|safe }};
+    const ctxPayment = document.getElementById('paymentMethodChart');
+    if (paymentMethods && paymentMethods.length > 0) {
+        new Chart(ctxPayment, {
+            type: 'doughnut',
+            data: {
+                labels: paymentMethods.map(m => m.method.toUpperCase().replace('_', ' ')),
+                datasets: [{
+                    data: paymentMethods.map(m => m.total_cents / 100),
+                    backgroundColor: [
+                        'rgba(16, 185, 129, 0.75)',  // Emerald
+                        'rgba(14, 165, 233, 0.75)',   // Info
+                        'rgba(245, 158, 11, 0.75)',   // Warning
+                        'rgba(239, 68, 68, 0.75)'     // Danger
+                    ],
+                    borderWidth: 1,
+                    borderColor: 'var(--glass-border)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                cutout: '65%'
+            }
+        });
+    }
+
+    // 2. Revenue Trend Line Chart (Premium Line chart redesign)
+    const trendData = {{ revenue_trend|tojson|safe }};
+    const ctxTrend = document.getElementById('revenueTrendChart');
+    if (trendData && trendData.length > 0) {
+        // Create custom gradient fill
+        const gradient = ctxTrend.getContext('2d').createLinearGradient(0, 0, 0, 280);
+        gradient.addColorStop(0, 'rgba(14, 165, 233, 0.25)');
+        gradient.addColorStop(1, 'rgba(14, 165, 233, 0)');
+        
+        new Chart(ctxTrend, {
+            type: 'line',
+            data: {
+                labels: trendData.map(d => {
+                    const p = d.date.split('-');
+                    if (p.length < 3) return d.date;
+                    const date = new Date(p[0], p[1]-1, p[2]);
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }),
+                datasets: [{
+                    label: 'Revenue',
+                    data: trendData.map(d => d.revenue_cents / 100),
+                    borderColor: '#0ea5e9',
+                    borderWidth: 3,
+                    pointBackgroundColor: '#0ea5e9',
+                    pointHoverRadius: 6,
+                    pointHoverBackgroundColor: '#ffffff',
+                    fill: true,
+                    backgroundColor: gradient,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#0f172a',
+                        titleColor: '#94a3b8',
+                        bodyColor: '#ffffff',
+                        borderColor: '#1e293b',
+                        borderWidth: 1,
+                        padding: 10,
+                        callbacks: {
+                            label: function(context) {
+                                return 'Revenue: $' + context.parsed.y.toFixed(2);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)',
+                            borderDash: [5, 5]
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+
+    // Navigation and refresh listener re-triggers routing
+    function reloadWithPeriod() {
+        window.location.href = `{{ url_for("reports.index") }}?date=${dateInput.value}&period=${periodSelect.value}`;
+    }
+
+    dateInput.addEventListener('change', reloadWithPeriod);
+    periodSelect.addEventListener('change', reloadWithPeriod);
+    document.getElementById('btnRefresh').addEventListener('click', reloadWithPeriod);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,1502 @@
+{% extends "base/admin_base.html" %}
+
+{% block page_title %}Inventory{% endblock %}
+
+{% block page_actions %}
+<div class="d-flex gap-2 flex-wrap">
+    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addIngredientModal"><i class="fa-solid fa-plus me-1"></i> Add Ingredient</button>
+    <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#addStockModal"><i class="fa-solid fa-arrow-down-long me-1"></i> Add Stock</button>
+    {% if active_session %}
+    <a href="#activeSessionCard" class="btn btn-emerald" aria-label="View active count"><i class="fa-solid fa-clipboard-check me-1"></i> Count Stock (Active)</a>
+    {% else %}
+    <button class="btn btn-outline-emerald" data-bs-toggle="modal" data-bs-target="#countStockModal"><i class="fa-solid fa-clipboard-check me-1"></i> Count Stock</button>
+    {% endif %}
+    <button class="btn btn-emerald" data-bs-toggle="modal" data-bs-target="#createOrderModal"><i class="fa-solid fa-file-signature me-1"></i> Create Supplier Order</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/inventory.css') }}?v=1.1">
+
+<!-- Tab Navigation Bar -->
+<ul class="nav nav-pills mb-4 gap-2" id="inventoryTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link {% if active_tab == 'stock' %}active{% endif %}" id="stock-tab" data-bs-toggle="tab" data-bs-target="#stock-pane" type="button" role="tab" aria-controls="stock-pane" aria-selected="true">
+            <i class="fa-solid fa-boxes-stacked me-2"></i>Stock Levels
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link {% if active_tab == 'purchasing' %}active{% endif %}" id="purchasing-tab" data-bs-toggle="tab" data-bs-target="#purchasing-pane" type="button" role="tab" aria-controls="purchasing-pane" aria-selected="false">
+            <i class="fa-solid fa-file-invoice-dollar me-2"></i>Purchasing
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link {% if active_tab == 'suppliers' %}active{% endif %}" id="suppliers-tab" data-bs-toggle="tab" data-bs-target="#suppliers-pane" type="button" role="tab" aria-controls="suppliers-pane" aria-selected="false">
+            <i class="fa-solid fa-address-book me-2"></i>Suppliers
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link {% if active_tab == 'reports' %}active{% endif %}" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports-pane" type="button" role="tab" aria-controls="reports-pane" aria-selected="false">
+            <i class="fa-solid fa-chart-pie me-2"></i>Reports
+        </button>
+    </li>
+</ul>
+
+<!-- Tab Panes -->
+<div class="tab-content" id="inventoryTabContent">
+
+    <!-- 1. Stock Levels Pane -->
+    <div class="tab-pane fade {% if active_tab == 'stock' %}show active{% endif %}" id="stock-pane" role="tabpanel" aria-labelledby="stock-tab">
+        <!-- Active Count Session Card -->
+        {% if active_session %}
+        <div class="card glass-card mb-4" id="activeSessionCard">
+            <div class="glass-card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-1 fw-semibold text-light"><i class="fa-solid fa-clipboard-check text-emerald me-2"></i>Active Count Session</h5>
+                    <p class="text-secondary small mb-0">{{ active_session.session_name }} &bull; Started at {{ active_session.started_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                </div>
+                <div>
+                    <button type="submit" form="activeSessionForm" class="btn btn-emerald"><i class="fa-solid fa-check me-1"></i> Submit Counts</button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <form id="activeSessionForm" action="{{ url_for('inventory.count_submit', id=active_session.session_id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="table-responsive">
+                        <table class="table table-glass table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Ingredient</th>
+                                    <th>System Quantity</th>
+                                    <th style="width: 250px;">Physical Count</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in active_session.count_items %}
+                                <tr>
+                                    <td class="fw-semibold">
+                                        <div class="d-flex align-items-center">
+                                            {% if item.ingredient.image_path %}
+                                            <img src="{{ url_for('static', filename=item.ingredient.image_path) }}" alt="{{ item.ingredient.name }}" class="rounded me-2" style="width: 32px; height: 32px; object-fit: cover;">
+                                            {% else %}
+                                            <div class="d-inline-flex align-items-center justify-content-center rounded bg-secondary text-dark fw-bold me-2" style="width: 32px; height: 32px; font-size: 14px;">
+                                                {{ item.ingredient.name[0]|upper }}
+                                            </div>
+                                            {% endif %}
+                                            <span>{{ item.ingredient.name }}</span>
+                                        </div>
+                                    </td>
+                                    <td>{{ item.system_qty }} <span class="text-secondary small">{{ item.ingredient.unit }}</span></td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" step="0.001" min="0" class="form-control form-dark form-control-sm" name="counted_qty_{{ item.ingredient_id }}" required placeholder="Enter count">
+                                            <span class="input-group-text bg-dark border-secondary text-secondary">{{ item.ingredient.unit }}</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Stock Levels Card -->
+        <div class="card glass-card">
+            <div class="glass-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-semibold text-light">Stock Levels</h5>
+                <div class="input-group" style="width: 260px;">
+                    <span class="input-group-text bg-dark border-secondary text-secondary"><i class="fa-solid fa-search"></i></span>
+                    <input type="text" id="inventorySearch" class="form-control form-dark" placeholder="Search ingredients..." aria-label="Search ingredients">
+                </div>
+            </div>
+            <div class="card-body p-0">
+                {% if ingredients %}
+                <div class="table-responsive">
+                    <table class="table table-glass table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Ingredient</th>
+                                <th>In Stock</th>
+                                <th>Unit</th>
+                                <th>Low Stock Alert Level</th>
+                                <th>Status</th>
+                                <th class="text-end" style="width: 380px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="inventory-table-body">
+                            {% for item in ingredients %}
+                            <tr {% if item.is_active == 0 %}style="opacity: 0.65;"{% endif %}>
+                                <td class="fw-semibold">
+                                    <div class="d-flex align-items-center">
+                                        {% if item.image_path %}
+                                        <img src="{{ url_for('static', filename=item.image_path) }}" alt="{{ item.name }}" class="rounded me-2" style="width: 36px; height: 36px; object-fit: cover;">
+                                        {% else %}
+                                        <div class="d-inline-flex align-items-center justify-content-center rounded bg-secondary text-dark fw-bold me-2" style="width: 36px; height: 36px; font-size: 16px;">
+                                            {{ item.name[0]|upper }}
+                                        </div>
+                                        {% endif %}
+                                        <span>{{ item.name }}</span>
+                                    </div>
+                                </td>
+                                <td>{{ item.qty_in_stock }}</td>
+                                <td class="text-secondary">{{ item.unit }}</td>
+                                <td>{{ item.reorder_level }}</td>
+                                <td>
+                                    {% if item.is_active == 0 %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% elif item.qty_in_stock <= 0 %}
+                                        <span class="badge bg-danger">Depleted</span>
+                                    {% elif item.qty_in_stock <= item.reorder_level %}
+                                        <span class="badge bg-warning text-dark">Low Stock</span>
+                                    {% else %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-flex justify-content-end gap-1 flex-wrap">
+                                        <button class="btn btn-xs btn-outline-info edit-ingredient-btn" 
+                                                data-id="{{ item.ingredient_id }}" 
+                                                data-name="{{ item.name }}"
+                                                data-unit="{{ item.unit }}"
+                                                data-reorder="{{ item.reorder_level }}"
+                                                data-supplier="{{ item.default_supplier_id or 0 }}"
+                                                data-active="{{ item.is_active or 1 }}"
+                                                data-image="{{ item.image_path or '' }}"
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#editIngredientModal" 
+                                                aria-label="Edit {{ item.name }}"><i class="fa-solid fa-pen-to-square me-1"></i>Edit</button>
+                                        <button class="btn btn-xs btn-outline-success add-stock-btn" 
+                                                data-id="{{ item.ingredient_id }}" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#addStockModal" 
+                                                aria-label="Add stock for {{ item.name }}"><i class="fa-solid fa-plus me-1"></i>Add Stock</button>
+                                        <button class="btn btn-xs btn-outline-warning remove-stock-btn" 
+                                                data-id="{{ item.ingredient_id }}" 
+                                                data-name="{{ item.name }}"
+                                                data-unit="{{ item.unit }}"
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#removeStockModal" 
+                                                aria-label="Remove stock for {{ item.name }}"><i class="fa-solid fa-trash-can me-1"></i>Remove Stock</button>
+                                        <button class="btn btn-xs btn-outline-light history-ingredient-btn" 
+                                                data-id="{{ item.ingredient_id }}" 
+                                                data-name="{{ item.name }}"
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#historyModal" 
+                                                aria-label="History for {{ item.name }}"><i class="fa-solid fa-history me-1"></i>History</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                    {% set icon = 'fa-solid fa-boxes-stacked' %}
+                    {% set title = 'Inventory is empty' %}
+                    {% set message = 'Start tracking your ingredients to calculate food cost.' %}
+                    {% include 'partials/empty_state.html' %}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Completed Count Sessions Card -->
+        {% if completed_sessions %}
+        <div class="card glass-card mt-4">
+            <div class="glass-card-header">
+                <h5 class="mb-0 fw-semibold text-light"><i class="fa-solid fa-history text-emerald me-2"></i>Completed Counts & Adjustments</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="accordion accordion-flush" id="completedCountsAccordion">
+                    {% for session in completed_sessions %}
+                    <div class="accordion-item bg-transparent text-light border-secondary">
+                        <h2 class="accordion-header bg-transparent" id="heading-{{ session.session_id }}">
+                            <button class="accordion-button collapsed bg-transparent text-light border-secondary fw-semibold d-flex justify-content-between align-items-center" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ session.session_id }}" aria-expanded="false" aria-controls="collapse-{{ session.session_id }}">
+                                <span>
+                                    <i class="fa-solid fa-file-invoice text-emerald me-2"></i>{{ session.session_name }}
+                                    <span class="text-secondary small ms-2">Completed at {{ session.completed_at.strftime('%Y-%m-%d %H:%M') if session.completed_at else '' }}</span>
+                                </span>
+                            </button>
+                        </h2>
+                        <div id="collapse-{{ session.session_id }}" class="accordion-collapse collapse" aria-labelledby="heading-{{ session.session_id }}" data-bs-parent="#completedCountsAccordion">
+                            <div class="accordion-body bg-dark bg-opacity-20">
+                                <div class="table-responsive mb-3">
+                                    <table class="table table-glass table-sm mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Ingredient</th>
+                                                <th>System Qty</th>
+                                                <th>Physical Qty</th>
+                                                <th>Variance</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item in session.count_items %}
+                                            <tr>
+                                                <td>{{ item.ingredient.name }}</td>
+                                                <td>{{ item.system_qty }} <span class="text-secondary small">{{ item.ingredient.unit }}</span></td>
+                                                <td>{{ item.counted_qty if item.counted_qty is not none else 'N/A' }} <span class="text-secondary small">{{ item.ingredient.unit }}</span></td>
+                                                <td>
+                                                    {% if item.variance_qty is not none %}
+                                                        {% set var = item.variance_qty|float %}
+                                                        {% if var > 0 %}
+                                                            <span class="text-success">+{{ item.variance_qty }}</span>
+                                                        {% elif var < 0 %}
+                                                            <span class="text-danger">{{ item.variance_qty }}</span>
+                                                        {% else %}
+                                                            <span class="text-secondary">0.000</span>
+                                                        {% endif %}
+                                                    {% else %}
+                                                        <span class="text-secondary">N/A</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="text-secondary small">Review adjustments and variance details before applying them to the system inventory.</span>
+                                    <form action="{{ url_for('inventory.count_confirm', id=session.session_id) }}" method="POST">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-sm btn-emerald">
+                                            <i class="fa-solid fa-circle-check me-1"></i> Apply & Adjust Stock
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 2. Purchasing Pane (Supplier Orders) -->
+    <div class="tab-pane fade {% if active_tab == 'purchasing' %}show active{% endif %}" id="purchasing-pane" role="tabpanel" aria-labelledby="purchasing-tab">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="text-light mb-0"><i class="fa-solid fa-file-invoice-dollar text-emerald me-2"></i>Supplier Orders</h4>
+            <div class="d-flex gap-2">
+                <button class="btn btn-emerald" data-bs-toggle="modal" data-bs-target="#createOrderModal">
+                    <i class="fa-solid fa-file-signature me-1"></i> Create Supplier Order
+                </button>
+            </div>
+        </div>
+
+        <div class="card glass-card">
+            <div class="card-body p-0">
+                {% if purchase_orders %}
+                <div class="table-responsive">
+                    <table class="table table-glass table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Order Number</th>
+                                <th>Supplier</th>
+                                <th>Expected Delivery</th>
+                                <th>Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for po in purchase_orders %}
+                            <tr>
+                                <td class="fw-bold text-light font-monospace">{{ po.po_number }}</td>
+                                <td class="fw-semibold text-emerald">{{ po.supplier.name }}</td>
+                                <td>{{ po.expected_at.strftime('%Y-%m-%d') if po.expected_at else 'N/A' }}</td>
+                                <td>
+                                    {% if po.status == 'draft' %}
+                                        <span class="badge bg-secondary">Draft</span>
+                                    {% elif po.status == 'approved' or po.status == 'ordered' %}
+                                        <span class="badge bg-primary">Ordered</span>
+                                    {% elif po.status == 'partially_received' %}
+                                        <span class="badge bg-warning text-dark">Partially Received</span>
+                                    {% elif po.status == 'received' %}
+                                        <span class="badge bg-success">Received</span>
+                                    {% elif po.status == 'cancelled' %}
+                                        <span class="badge bg-danger">Cancelled</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-info view-po-btn" data-id="{{ po.purchase_order_id }}" aria-label="View Details"><i class="fa-solid fa-eye"></i> Details</button>
+                                    
+                                    {% if po.status == 'draft' %}
+                                    <form action="{{ url_for('inventory.approve_po', id=po.purchase_order_id) }}" method="POST" class="d-inline ms-1">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-success"><i class="fa-solid fa-circle-check"></i> Approve</button>
+                                    </form>
+                                    {% endif %}
+
+                                    {% if po.status in ['approved', 'ordered', 'partially_received'] %}
+                                    <button class="btn btn-sm btn-outline-warning receive-po-btn ms-1" data-id="{{ po.purchase_order_id }}" aria-label="Receive Delivery"><i class="fa-solid fa-truck-ramp-box"></i> Receive Delivery</button>
+                                    {% endif %}
+
+                                    {% if po.status not in ['received', 'cancelled'] %}
+                                    <button class="btn btn-sm btn-outline-danger cancel-po-btn ms-1" data-id="{{ po.purchase_order_id }}"><i class="fa-solid fa-xmark"></i> Cancel</button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-4 text-center">
+                    <p class="text-secondary mb-0">No supplier orders placed yet.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Suppliers Pane -->
+    <div class="tab-pane fade {% if active_tab == 'suppliers' %}show active{% endif %}" id="suppliers-pane" role="tabpanel" aria-labelledby="suppliers-tab">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="text-light mb-0"><i class="fa-solid fa-address-book text-emerald me-2"></i>Suppliers Directory</h4>
+            <button class="btn btn-emerald" data-bs-toggle="modal" data-bs-target="#createSupplierModal">
+                <i class="fa-solid fa-plus me-1"></i> Add Supplier
+            </button>
+        </div>
+
+        <!-- Toolbar: Search, Filter, Sort -->
+        <div class="card glass-card border-secondary mb-3 p-3">
+            <div class="row g-2 align-items-center">
+                <div class="col-md-5">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-dark border-secondary text-emerald"><i class="fa-solid fa-search"></i></span>
+                        <input type="text" id="supplierSearchInput" class="form-control form-dark" placeholder="Search suppliers by name or contact...">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select id="supplierFilterSelect" class="form-select form-select-sm form-dark">
+                        <option value="all">All Suppliers</option>
+                        <option value="active">Active Only</option>
+                        <option value="inactive">Inactive Only</option>
+                        <option value="preferred">Preferred</option>
+                        <option value="overdue">Has Overdue Orders</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select id="supplierSortSelect" class="form-select form-select-sm form-dark">
+                        <option value="name">Sort: Name (A-Z)</option>
+                        <option value="spend">Sort: Total Spend (High-Low)</option>
+                        <option value="recent">Sort: Last Order (Recent)</option>
+                        <option value="ontime">Sort: On-Time Rate (High-Low)</option>
+                    </select>
+                </div>
+                <div class="col-md-1 text-end">
+                    <span class="badge bg-secondary" id="supplierCountBadge">{{ suppliers|length }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- No results message (hidden by default) -->
+        <div id="supplierNoResults" class="card glass-card p-4 text-center border-secondary d-none">
+            <i class="fa-solid fa-search text-secondary mb-2" style="font-size: 2rem;"></i>
+            <p class="text-secondary mb-0">No matching suppliers found. Try adjusting your search or filters.</p>
+        </div>
+
+        {% if suppliers %}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3" id="supplierCardsContainer">
+            {% for s in suppliers %}
+            <div class="col supplier-card-col"
+                 data-name="{{ s.name|lower }}"
+                 data-contact="{{ (s.contact_name or '')|lower }}"
+                 data-active="{{ s.is_active }}"
+                 data-preferred="{{ s.is_preferred }}"
+                 data-overdue="{{ supplier_insights[s.supplier_id]['overdue_count'] }}"
+                 data-spend="{{ supplier_insights[s.supplier_id]['total_spend_cents'] }}"
+                 data-lastorder="{{ supplier_insights[s.supplier_id]['last_order_date'] }}"
+                 data-ontime="{{ supplier_insights[s.supplier_id]['on_time_pct'] }}">
+                <div class="card glass-card h-100 supplier-card border-secondary bg-dark bg-opacity-40 {% if s.is_active != 1 %}opacity-60{% endif %}" style="transition: all 0.2s ease;">
+                    <div class="card-body pb-2">
+                        <!-- TOP: Avatar + Name + Status Badges -->
+                        <div class="d-flex align-items-start mb-3">
+                            {% if s.image_path %}
+                            <img src="{{ url_for('static', filename=s.image_path) }}" alt="{{ s.name }}" class="rounded me-3 border border-secondary flex-shrink-0" style="width: 52px; height: 52px; object-fit: cover;">
+                            {% else %}
+                            <div class="d-flex align-items-center justify-content-center rounded bg-dark border border-secondary text-emerald fw-bold me-3 flex-shrink-0" style="width: 52px; height: 52px; font-size: 20px;">
+                                {{ s.name[0]|upper }}
+                            </div>
+                            {% endif %}
+                            <div class="flex-grow-1 min-width-0">
+                                <h6 class="mb-1 text-light fw-bold text-truncate">{{ s.name }}</h6>
+                                <p class="mb-1 text-emerald small font-monospace text-truncate"><i class="fa-solid fa-user me-1"></i>{{ s.contact_name or 'No Contact' }}</p>
+                                <div class="d-flex gap-1 flex-wrap">
+                                    {% if s.is_active == 1 %}
+                                    <span class="badge bg-success bg-opacity-20 text-success border border-success" style="font-size: 0.65rem;">Active</span>
+                                    {% else %}
+                                    <span class="badge bg-danger bg-opacity-20 text-danger border border-danger" style="font-size: 0.65rem;">Inactive</span>
+                                    {% endif %}
+                                    {% if s.is_preferred == 1 %}
+                                    <span class="badge bg-warning bg-opacity-20 text-warning border border-warning" style="font-size: 0.65rem;"><i class="fa-solid fa-star me-1"></i>Preferred</span>
+                                    {% endif %}
+                                    {% if supplier_insights[s.supplier_id]['overdue_count'] > 0 %}
+                                    <span class="badge bg-danger bg-opacity-20 text-danger border border-danger" style="font-size: 0.65rem;"><i class="fa-solid fa-clock me-1"></i>{{ supplier_insights[s.supplier_id]['overdue_count'] }} Overdue</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- MIDDLE: Contact Details (compact) -->
+                        <ul class="list-unstyled mb-0 small text-secondary" style="font-size: 0.78rem;">
+                            <li class="mb-1 text-truncate"><i class="fa-solid fa-phone me-2 text-emerald" style="width: 14px;"></i>{{ s.phone or 'N/A' }}</li>
+                            <li class="mb-1 text-truncate"><i class="fa-solid fa-envelope me-2 text-emerald" style="width: 14px;"></i>{{ s.email or 'N/A' }}</li>
+                            <li class="text-truncate"><i class="fa-solid fa-location-dot me-2 text-emerald" style="width: 14px;"></i>{{ s.address or 'N/A' }}</li>
+                        </ul>
+
+                        <!-- KPI Strip -->
+                        <div class="row g-0 text-center mt-2 pt-2 border-top border-secondary" style="font-size: 0.72rem;">
+                            <div class="col-3 border-end border-secondary">
+                                <span class="text-secondary d-block" style="font-size: 0.6rem;">On-Time</span>
+                                <span class="fw-bold text-emerald">{{ supplier_insights[s.supplier_id]['on_time_pct'] }}%</span>
+                            </div>
+                            <div class="col-3 border-end border-secondary">
+                                <span class="text-secondary d-block" style="font-size: 0.6rem;">Lead Time</span>
+                                <span class="fw-bold text-info">{{ supplier_insights[s.supplier_id]['avg_lead_time'] }}d</span>
+                            </div>
+                            <div class="col-3 border-end border-secondary">
+                                <span class="text-secondary d-block" style="font-size: 0.6rem;">Spend</span>
+                                <span class="fw-bold text-light">${{ "%.0f"|format(supplier_insights[s.supplier_id]['total_spend_cents'] / 100.0) }}</span>
+                            </div>
+                            <div class="col-3">
+                                <span class="text-secondary d-block" style="font-size: 0.6rem;">Last Order</span>
+                                <span class="fw-bold text-light" style="font-size: 0.65rem;">{{ supplier_insights[s.supplier_id]['last_order_date'] }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BOTTOM: Action Buttons -->
+                    <div class="card-footer bg-transparent border-secondary pt-2 pb-2">
+                        <div class="d-flex gap-1 justify-content-between">
+                            <button class="btn btn-sm btn-outline-emerald flex-fill edit-supplier-btn"
+                                    data-id="{{ s.supplier_id }}"
+                                    data-name="{{ s.name }}"
+                                    data-contact="{{ s.contact_name or '' }}"
+                                    data-phone="{{ s.phone or '' }}"
+                                    data-email="{{ s.email or '' }}"
+                                    data-address="{{ s.address or '' }}"
+                                    data-notes="{{ s.notes or '' }}"
+                                    data-preferred="{{ s.is_preferred }}"
+                                    data-active="{{ s.is_active }}"
+                                    data-image="{{ s.image_path or '' }}"
+                                    title="Edit Supplier">
+                                <i class="fa-solid fa-pen-to-square me-1"></i>Edit
+                            </button>
+                            <button class="btn btn-sm btn-outline-info flex-fill new-po-for-supplier-btn"
+                                    data-supplier-id="{{ s.supplier_id }}"
+                                    data-supplier-name="{{ s.name }}"
+                                    title="Create New Order">
+                                <i class="fa-solid fa-cart-plus me-1"></i>New PO
+                            </button>
+                            <button class="btn btn-sm btn-outline-light flex-fill view-supplier-detail-btn"
+                                    data-id="{{ s.supplier_id }}"
+                                    title="View Details & Orders">
+                                <i class="fa-solid fa-eye me-1"></i>Orders
+                            </button>
+                            <form action="{{ url_for('inventory.deactivate_supplier', id=s.supplier_id) }}" method="POST" class="d-inline flex-shrink-0">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm {% if s.is_active == 1 %}btn-outline-warning{% else %}btn-outline-success{% endif %}" title="{% if s.is_active == 1 %}Archive{% else %}Reactivate{% endif %}">
+                                    <i class="fa-solid {% if s.is_active == 1 %}fa-box-archive{% else %}fa-rotate-left{% endif %}"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="card glass-card p-5 text-center border-secondary">
+            <i class="fa-solid fa-truck-field text-secondary mb-3" style="font-size: 3rem;"></i>
+            <h5 class="text-light mb-2">No Suppliers Yet</h5>
+            <p class="text-secondary mb-3">Add your first supplier to start managing your supply chain.</p>
+            <div>
+                <button class="btn btn-emerald" data-bs-toggle="modal" data-bs-target="#createSupplierModal">
+                    <i class="fa-solid fa-plus me-1"></i> Add First Supplier
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 3. Reports Pane -->
+    <div class="tab-pane fade {% if active_tab == 'reports' %}show active{% endif %}" id="reports-pane" role="tabpanel" aria-labelledby="reports-tab">
+        <h4 class="text-light mb-4"><i class="fa-solid fa-chart-line text-emerald me-2"></i>Purchasing Analytics</h4>
+        
+        <!-- Summary Cards Row -->
+        <div class="row row-cols-1 row-cols-md-3 g-3 mb-4">
+            <div class="col">
+                <div class="card glass-card border-secondary text-center p-3">
+                    <div class="card-body">
+                        <h6 class="text-secondary uppercase mb-2 text-xs">Total Spend (Received POs)</h6>
+                        {% set total_spend = namespace(cents=0) %}
+                        {% for r in spend_by_supplier %}
+                            {% set total_spend.cents = total_spend.cents + r.total_spend_cents %}
+                        {% endfor %}
+                        <h2 class="text-emerald fw-bold mb-0">${{ "%.2f"|format(total_spend.cents / 100.0) }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card glass-card border-secondary text-center p-3">
+                    <div class="card-body">
+                        <h6 class="text-secondary uppercase mb-2 text-xs">Outstanding Ordered POs</h6>
+                        {% set outstanding_pos = purchase_orders | selectattr('status', 'equalto', 'ordered') | list | length %}
+                        {% set partial_pos = purchase_orders | selectattr('status', 'equalto', 'partially_received') | list | length %}
+                        <h2 class="text-info fw-bold mb-0">{{ outstanding_pos + partial_pos }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card glass-card border-secondary text-center p-3">
+                    <div class="card-body">
+                        <h6 class="text-secondary uppercase mb-2 text-xs">Overdue Purchase Orders</h6>
+                        <h2 class="text-danger fw-bold mb-0">{{ overdue_pos | length }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts & Tables Section -->
+        <div class="row g-4 mb-4">
+            <!-- Spend by Supplier (Table and Pie Chart) -->
+            <div class="col-md-6">
+                <div class="card glass-card h-100">
+                    <div class="glass-card-header">
+                        <h5 class="mb-0 text-light fw-bold">Spend by Supplier</h5>
+                    </div>
+                    <div class="card-body d-flex flex-column justify-content-between">
+                        {% if spend_by_supplier %}
+                        <div class="mb-3">
+                            <canvas id="supplierSpendChart" style="max-height: 250px;"></canvas>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-glass table-sm mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Supplier</th>
+                                        <th class="text-end">Total Spend</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for r in spend_by_supplier %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ r.name }}</td>
+                                        <td class="text-end text-emerald fw-bold">${{ "%.2f"|format(r.total_spend_cents / 100.0) }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center p-4">
+                            <p class="text-secondary mb-0">No spend records recorded.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overdue Orders Alert Box -->
+            <div class="col-md-6">
+                <div class="card glass-card h-100">
+                    <div class="glass-card-header">
+                        <h5 class="mb-0 text-light fw-bold">Overdue / Delayed Shipments</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if overdue_pos %}
+                        <div class="alert alert-danger border-danger bg-danger bg-opacity-10 text-light mb-3">
+                            <i class="fa-solid fa-triangle-exclamation text-danger me-2"></i><strong>Warning:</strong> You have {{ overdue_pos | length }} purchase orders past their expected delivery dates.
+                        </div>
+                        <div class="list-group list-group-flush">
+                            {% for po in overdue_pos %}
+                            <div class="list-group-item bg-transparent text-light border-secondary px-0 py-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1 fw-bold text-light font-monospace">{{ po.po_number }}</h6>
+                                        <span class="text-secondary small">Supplier: {{ po.supplier.name }}</span>
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="badge bg-danger mb-1">Overdue</span>
+                                        <div class="text-secondary text-xs">Expected: {{ po.expected_at.strftime('%Y-%m-%d') }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="h-100 d-flex flex-column align-items-center justify-content-center text-center p-4">
+                            <div class="rounded-circle bg-success bg-opacity-10 text-success p-3 mb-2" style="font-size: 24px;">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                            <h6 class="text-light fw-bold">All Shipments On Time</h6>
+                            <p class="text-secondary small mb-0">There are no pending purchase orders past their delivery estimates.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Supplier Price History Table -->
+        <div class="card glass-card">
+            <div class="glass-card-header">
+                <h5 class="mb-0 text-light fw-bold"><i class="fa-solid fa-clock-rotate-left text-emerald me-2"></i>Ingredient Price History Logs</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if price_history %}
+                <div class="table-responsive">
+                    <table class="table table-glass table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Ingredient</th>
+                                <th>Supplier</th>
+                                <th>Unit Cost</th>
+                                <th>Recorded Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for history in price_history %}
+                            <tr>
+                                <td class="fw-semibold">{{ history.ingredient.name }}</td>
+                                <td class="text-emerald">{{ history.supplier.name }}</td>
+                                <td class="fw-bold">${{ "%.2f"|format(history.unit_cost_cents / 100.0) }}</td>
+                                <td>{{ history.recorded_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-4 text-center">
+                    <p class="text-secondary mb-0">No supplier pricing history logged. Prices will record when items are received on approved POs.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- MODALS -->
+
+<!-- 1. Count Stock Modal -->
+<div class="modal fade" id="countStockModal" tabindex="-1" aria-labelledby="countStockModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="countStockModalLabel"><i class="fa-solid fa-clipboard-check me-1"></i> Start Stock Count</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="countStockForm" action="{{ url_for('inventory.count_start') }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="countSessionName" class="form-label text-light">Count Sheet Name</label>
+                        <input type="text" class="form-control form-dark" id="countSessionName" name="session_name" required placeholder="e.g. Daily Count - June 15 or Weekly Kitchen Count">
+                        <div class="form-text text-secondary text-xs">This will generate a counted stock list of all ingredients.</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="submit" form="countStockForm" class="btn btn-emerald">Start Count</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Add Stock Modal (Emergency/Informal stock entry) -->
+<div class="modal fade" id="addStockModal" tabindex="-1" aria-labelledby="addStockModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="addStockModalLabel"><i class="fa-solid fa-arrow-down-long me-1"></i> Add Stock</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addStockForm" action="{{ url_for('inventory.add_batch') }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="batchIngredientId" class="form-label text-light">Ingredient *</label>
+                        <select class="form-select form-dark" id="batchIngredientId" name="ingredient_id" required>
+                            {% for item in ingredients %}
+                            {% if item.is_active != 0 %}
+                            <option value="{{ item.ingredient_id }}">{{ item.name }} ({{ item.unit }})</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="batchQtyReceived" class="form-label text-light">Quantity Received *</label>
+                        <div class="input-group">
+                            <input type="number" step="0.001" min="0.001" class="form-control form-dark" id="batchQtyReceived" name="qty_received" required placeholder="e.g. 50.000">
+                            <span class="input-group-text bg-dark border-secondary text-secondary" id="batchUnit">unit</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="batchCostPerUnit" class="form-label text-light">Cost Per Unit (Optional, default 0.00)</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark border-secondary text-secondary">$</span>
+                            <input type="number" step="0.01" min="0" class="form-control form-dark" id="batchCostPerUnit" name="cost_per_unit" value="0.00" required placeholder="e.g. 1.50">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-light">Total Cost</label>
+                        <div class="form-control form-dark bg-dark bg-opacity-50 border-secondary">
+                            <span class="text-secondary">$</span> <span id="batchTotalCost" class="fw-bold text-emerald">0.00</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="batchExpiryDate" class="form-label text-light">Expiry Date (Optional)</label>
+                        <input type="date" class="form-control form-dark" id="batchExpiryDate" name="expiry_date">
+                    </div>
+                    <div class="mb-3">
+                        <label for="batchReason" class="form-label text-light">Reason for Adding Stock *</label>
+                        <select class="form-select form-dark" id="batchReason" name="reason" required>
+                            <option value="emergency stock">Emergency Stock Arrival</option>
+                            <option value="opening stock">Opening Stock Setup</option>
+                            <option value="informal arrival">Informal Stock Arrival</option>
+                            <option value="manual correction">Manual Correction</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="batchNote" class="form-label text-light">Business Note</label>
+                        <input type="text" class="form-control form-dark" id="batchNote" name="note" placeholder="e.g. Bought from local store or supplier delivery note number">
+                    </div>
+                    <input type="hidden" name="supplier_ref" id="batchSupplierRef" value="Informal">
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="addStockForm" class="btn btn-emerald">Add Stock</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 3. Remove Stock Modal (Waste/Spoilage log) -->
+<div class="modal fade" id="removeStockModal" tabindex="-1" aria-labelledby="removeStockModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="removeStockModalLabel"><i class="fa-solid fa-trash-can me-1"></i> Remove Stock</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="removeStockForm" action="{{ url_for('inventory.waste') }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" id="removeIngredientId" name="ingredient_id">
+                    <div class="mb-3">
+                        <label class="form-label text-light">Ingredient</label>
+                        <input type="text" class="form-control form-dark" id="removeIngredientName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="removeQty" class="form-label text-light">Quantity to Remove *</label>
+                        <div class="input-group">
+                            <input type="number" step="0.001" min="0.001" class="form-control form-dark" id="removeQty" name="qty" required placeholder="e.g. 1.5">
+                            <span class="input-group-text bg-dark border-secondary text-secondary" id="removeUnit">unit</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="removeReason" class="form-label text-light">Reason for Removal *</label>
+                        <select class="form-select form-dark" id="removeReason" name="reason" required>
+                            <option value="waste">Wasted / Spoilage</option>
+                            <option value="expiry">Expired Stock</option>
+                            <option value="damage">Damaged Item</option>
+                            <option value="manual correction">Manual Correction</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="removeNote" class="form-label text-light">Business Note</label>
+                        <input type="text" class="form-control form-dark" id="removeNote" name="note" placeholder="e.g. Fridge went warm or chef spilled sauce">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="removeStockForm" class="btn btn-emerald">Remove Stock</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 4. Update Stock Modal (Manual adjustment) -->
+<div class="modal fade" id="updateStockModal" tabindex="-1" aria-labelledby="updateStockModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="updateStockModalLabel"><i class="fa-solid fa-scale-balanced me-1"></i> Update Stock Level</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="updateStockForm" action="{{ url_for('inventory.adjust') }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" id="adjustIngredientId" name="ingredient_id">
+                    <div class="mb-3">
+                        <label class="form-label text-light">Ingredient</label>
+                        <input type="text" class="form-control form-dark" id="adjustIngredientName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Current Quantity</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control form-dark" id="adjustCurrentQty" readonly>
+                            <span class="input-group-text bg-dark border-secondary text-secondary" id="adjustUnitCurrent">unit</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="adjustNewQty" class="form-label text-light">New Real Quantity *</label>
+                        <div class="input-group">
+                            <input type="number" step="0.001" min="0" class="form-control form-dark" id="adjustNewQty" name="new_qty" required placeholder="e.g. 12.000">
+                            <span class="input-group-text bg-dark border-secondary text-secondary" id="adjustUnitNew">unit</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="adjustReason" class="form-label text-light">Reason for Update *</label>
+                        <input type="text" class="form-control form-dark" id="adjustReason" name="reason" required placeholder="e.g. Physical count correction or opening setup correction">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="updateStockForm" class="btn btn-emerald">Update Stock</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 5. Register Supplier Modal -->
+<div class="modal fade" id="createSupplierModal" tabindex="-1" aria-labelledby="createSupplierModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="createSupplierModalLabel"><i class="fa-solid fa-plus me-1"></i> Add Supplier</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createSupplierForm" action="{{ url_for('inventory.add_supplier') }}" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="supName" class="form-label text-light">Supplier Name *</label>
+                        <input type="text" class="form-control form-dark" id="supName" name="name" required placeholder="e.g. Sysco Foods">
+                    </div>
+                    <div class="mb-3">
+                        <label for="supContact" class="form-label text-light">Contact Representative Name</label>
+                        <input type="text" class="form-control form-dark" id="supContact" name="contact_name" placeholder="e.g. Sarah Connor">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="supPhone" class="form-label text-light">Phone Number</label>
+                            <input type="text" class="form-control form-dark" id="supPhone" name="phone" placeholder="e.g. +1 555-901-2010">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="supEmail" class="form-label text-light">Email Address</label>
+                            <input type="email" class="form-control form-dark" id="supEmail" name="email" placeholder="e.g. accounts@sysco.com">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="supAddress" class="form-label text-light">Business Address</label>
+                        <input type="text" class="form-control form-dark" id="supAddress" name="address" placeholder="e.g. 100 Industrial Pkwy, Suite B">
+                    </div>
+                    <div class="mb-3">
+                        <label for="supNotes" class="form-label text-light">Notes</label>
+                        <textarea class="form-control form-dark" id="supNotes" name="notes" rows="2" placeholder="e.g. Delivery only on weekdays, minimum order $200"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-light">Preferred Supplier?</label>
+                        <select class="form-select form-dark" name="is_preferred">
+                            <option value="0">No</option>
+                            <option value="1">Yes â€” Mark as Preferred</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="supImage" class="form-label text-light">Supplier Image/Logo File</label>
+                        <input type="file" class="form-control form-dark" id="supImage" name="image" accept="image/*">
+                        <div class="form-text text-secondary text-xs">Or specify a manual URL below.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="supImageLink" class="form-label text-light">Or Image Path / URL</label>
+                        <input type="text" class="form-control form-dark" id="supImageLink" name="image_path" placeholder="e.g. img/placeholders/supplier.jpg">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="createSupplierForm" class="btn btn-emerald">Add Supplier</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 5b. Edit Supplier Modal -->
+<div class="modal fade" id="editSupplierModal" tabindex="-1" aria-labelledby="editSupplierModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="editSupplierModalLabel"><i class="fa-solid fa-pen-to-square me-1"></i> Edit Supplier</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editSupplierForm" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label class="form-label text-light">Supplier Name *</label>
+                        <input type="text" class="form-control form-dark" id="editSupName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-light">Contact Representative</label>
+                        <input type="text" class="form-control form-dark" id="editSupContact" name="contact_name">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-light">Phone</label>
+                            <input type="text" class="form-control form-dark" id="editSupPhone" name="phone">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-light">Email</label>
+                            <input type="email" class="form-control form-dark" id="editSupEmail" name="email">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-light">Address</label>
+                        <input type="text" class="form-control form-dark" id="editSupAddress" name="address">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-light">Notes</label>
+                        <textarea class="form-control form-dark" id="editSupNotes" name="notes" rows="2"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-light">Preferred?</label>
+                            <select class="form-select form-dark" id="editSupPreferred" name="is_preferred">
+                                <option value="0">No</option>
+                                <option value="1">Yes</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-light">Status</label>
+                            <select class="form-select form-dark" id="editSupActive" name="is_active">
+                                <option value="1">Active</option>
+                                <option value="0">Inactive</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-light">Update Image/Logo</label>
+                        <input type="file" class="form-control form-dark" name="image" accept="image/*">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-light">Or Image Path / URL</label>
+                        <input type="text" class="form-control form-dark" id="editSupImagePath" name="image_path">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="editSupplierForm" class="btn btn-emerald">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 5c. Supplier Detail Modal -->
+<div class="modal fade" id="supplierDetailModal" tabindex="-1" aria-labelledby="supplierDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="supplierDetailModalLabel"><i class="fa-solid fa-building me-1"></i> <span id="supplierDetailName">Supplier</span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Loading state -->
+                <div id="supplierDetailLoading" class="text-center py-4">
+                    <div class="spinner-border text-emerald" role="status"></div>
+                    <p class="text-secondary mt-2">Loading supplier details...</p>
+                </div>
+                <!-- Content (hidden until loaded) -->
+                <div id="supplierDetailContent" class="d-none">
+                    <!-- Profile summary -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="small text-secondary mb-1">Contact</div>
+                            <div class="text-light" id="sdContact">â€”</div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="small text-secondary mb-1">Phone / Email</div>
+                            <div class="text-light" id="sdPhoneEmail">â€”</div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="small text-secondary mb-1">Address</div>
+                            <div class="text-light" id="sdAddress">â€”</div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="small text-secondary mb-1">Registered</div>
+                            <div class="text-light" id="sdCreatedAt">â€”</div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="small text-secondary mb-1">Notes</div>
+                        <div class="text-light fst-italic" id="sdNotes">â€”</div>
+                    </div>
+
+                    <!-- KPI row -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-4">
+                            <div class="card bg-dark bg-opacity-60 border-secondary text-center p-2">
+                                <div class="text-secondary small">Total Spend</div>
+                                <div class="fw-bold text-emerald fs-6" id="sdTotalSpend">$0</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="card bg-dark bg-opacity-60 border-secondary text-center p-2">
+                                <div class="text-secondary small">Open Orders</div>
+                                <div class="fw-bold text-info fs-6" id="sdOpenPOs">0</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="card bg-dark bg-opacity-60 border-secondary text-center p-2">
+                                <div class="text-secondary small">Ingredients</div>
+                                <div class="fw-bold text-light fs-6" id="sdIngredientCount">0</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ingredients supplied -->
+                    <div class="mb-3">
+                        <h6 class="text-light fw-bold"><i class="fa-solid fa-carrot text-emerald me-1"></i> Ingredients Supplied</h6>
+                        <div id="sdIngredientsList" class="d-flex flex-wrap gap-1">
+                            <span class="text-secondary small">None yet.</span>
+                        </div>
+                    </div>
+
+                    <!-- Recent PO History -->
+                    <h6 class="text-light fw-bold"><i class="fa-solid fa-clock-rotate-left text-emerald me-1"></i> Recent Orders</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-dark table-borderless align-middle mb-0" style="font-size: 0.82rem;">
+                            <thead class="text-secondary">
+                                <tr><th>PO#</th><th>Status</th><th>Created</th><th>Expected</th><th>Total</th></tr>
+                            </thead>
+                            <tbody id="sdPOTableBody">
+                                <tr><td colspan="5" class="text-center text-secondary">No orders yet.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 6. Create Supplier Order Modal (Create Purchase Order) -->
+<div class="modal fade" id="createOrderModal" tabindex="-1" aria-labelledby="createOrderModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="createOrderModalLabel"><i class="fa-solid fa-file-signature me-1"></i> Create Supplier Order</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createOrderForm" action="{{ url_for('inventory.add_purchase_order') }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="poSupplier" class="form-label text-light">Supplier *</label>
+                            <select class="form-select form-dark" id="poSupplier" name="supplier_id" required>
+                                <option value="" disabled selected>Select Supplier</option>
+                                {% for s in suppliers %}
+                                <option value="{{ s.supplier_id }}">{{ s.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="poExpected" class="form-label text-light">Expected Delivery Date</label>
+                            <input type="date" class="form-control form-dark" id="poExpected" name="expected_at">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="poNotes" class="form-label text-light">Order Notes</label>
+                        <input type="text" class="form-control form-dark" id="poNotes" name="notes" placeholder="e.g. Bulk discount code or delivery entry notes">
+                    </div>
+
+                    <hr class="border-secondary mb-3">
+                    
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="text-light fw-bold mb-0">Order Items</h6>
+                        <button type="button" class="btn btn-sm btn-outline-info" id="addPORowBtn"><i class="fa-solid fa-plus me-1"></i> Add Ingredient Line</button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-glass table-sm align-middle" id="poItemsTable">
+                            <thead>
+                                <tr>
+                                    <th>Ingredient</th>
+                                    <th style="width: 150px;">Order Qty</th>
+                                    <th style="width: 180px;">Estimated Unit Cost</th>
+                                    <th style="width: 50px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="poItemsTbody">
+                                <!-- Dynamic rows are inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-end align-items-center mt-3">
+                        <span class="text-secondary me-2">Estimated Order Total:</span>
+                        <h4 class="text-emerald fw-bold mb-0" id="poEstimatedTotal">$0.00</h4>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="createOrderForm" class="btn btn-emerald">Save Draft Order</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 7. Supplier Order Details Modal -->
+<div class="modal fade" id="orderDetailModal" tabindex="-1" aria-labelledby="orderDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="orderDetailModalLabel"><i class="fa-solid fa-file-invoice me-1"></i> Supplier Order Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <table class="table table-glass table-sm text-xs mb-0">
+                            <tr>
+                                <td class="text-secondary border-0">Order Number:</td>
+                                <td class="fw-bold text-light font-monospace border-0" id="detPONumber"></td>
+                            </tr>
+                            <tr>
+                                <td class="text-secondary border-0">Supplier:</td>
+                                <td class="fw-bold text-emerald border-0" id="detPOSupplier"></td>
+                            </tr>
+                            <tr>
+                                <td class="text-secondary border-0">Status:</td>
+                                <td class="border-0" id="detPOStatus"></td>
+                            </tr>
+                            <tr>
+                                <td class="text-secondary border-0">Invoice Reference:</td>
+                                <td class="fw-bold text-info border-0" id="detPOInvoiceRef"></td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-4">
+                        <table class="table table-glass table-sm text-xs mb-0">
+                            <tr>
+                                <td class="text-secondary border-0">Created By:</td>
+                                <td class="text-light border-0" id="detPOCreatedBy"></td>
+                            </tr>
+                            <tr>
+                                <td class="text-secondary border-0">Approved By:</td>
+                                <td class="text-light border-0" id="detPOApprovedBy"></td>
+                            </tr>
+                            <tr>
+                                <td class="text-secondary border-0">Received By:</td>
+                                <td class="text-light border-0" id="detPOReceivedBy"></td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-4">
+                        <table class="table table-glass table-sm text-xs mb-0">
+                            <tr>
+                                <td class="text-secondary border-0">Created At:</td>
+                                <td class="text-light border-0" id="detPOCreatedAt"></td>
+                            </tr>
+                            <tr>
+                                <td class="text-secondary border-0">Approved At:</td>
+                                <td class="text-light border-0" id="detPOApprovedAt"></td>
+                            </tr>
+                            <tr>
+                                <td class="text-secondary border-0">Ordered At:</td>
+                                <td class="text-light border-0" id="detPOOrderedAt"></td>
+                            </tr>
+                            <tr>
+                                <td class="text-secondary border-0">Expected By:</td>
+                                <td class="text-light border-0" id="detPOExpectedAt"></td>
+                            </tr>
+                            <tr>
+                                <td class="text-secondary border-0">Received At:</td>
+                                <td class="text-light border-0" id="detPOReceivedAt"></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="text-secondary small">Notes / Instructions:</label>
+                    <p class="text-light small bg-dark bg-opacity-20 p-2 rounded" id="detPONotes"></p>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-glass table-sm">
+                        <thead>
+                            <tr>
+                                <th>Ingredient</th>
+                                <th>Unit</th>
+                                <th>Ordered Qty</th>
+                                <th>Received Qty</th>
+                                <th>Unit Cost</th>
+                                <th>Line Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detPOTbody">
+                            <!-- Items inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-end align-items-center mt-3">
+                    <span class="text-secondary me-2">Total Order Cost:</span>
+                    <h4 class="text-emerald fw-bold mb-0" id="detPOTotal">$0.00</h4>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 8. Receive Supplier Delivery Modal (Receive Purchase Order) -->
+<div class="modal fade" id="receiveDeliveryModal" tabindex="-1" aria-labelledby="receiveDeliveryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="receiveDeliveryModalLabel"><i class="fa-solid fa-truck-ramp-box me-1"></i> Receive Delivery</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="receivePOForm" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="invoiceRef" class="form-label text-light">Invoice Number / Delivery Reference *</label>
+                        <input type="text" class="form-control form-dark" id="invoiceRef" name="invoice_ref" required placeholder="e.g. INV-990812 or DELIV-CON-1">
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-glass table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Ingredient</th>
+                                    <th>Ordered / Recv</th>
+                                    <th style="width: 130px;">Actual Received *</th>
+                                    <th style="width: 150px;">Actual Unit Cost *</th>
+                                    <th style="width: 140px;">Expiry Date</th>
+                                    <th>Supplier Batch Ref</th>
+                                    <th>Batch Notes / Lot Info</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recPOTbody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="receivePOForm" class="btn btn-emerald">Receive Delivery</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 9. Cancel Supplier Order Modal -->
+<div class="modal fade" id="cancelOrderModal" tabindex="-1" aria-labelledby="cancelOrderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-danger fw-bold" id="cancelOrderModalLabel"><i class="fa-solid fa-triangle-exclamation me-1"></i> Cancel Supplier Order</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="cancelOrderForm" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <p class="text-secondary small">Are you sure you want to cancel this supplier order? This action is permanent and cannot be undone.</p>
+                    <div class="mb-3">
+                        <label for="cancelReason" class="form-label text-light">Reason for Cancellation</label>
+                        <input type="text" class="form-control form-dark" id="cancelReason" name="reason" required placeholder="e.g. Supplier out of stock or duplicate order placed">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="submit" form="cancelOrderForm" class="btn btn-danger">Confirm Cancellation</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 10. Add Ingredient Modal [NEW] -->
+<div class="modal fade" id="addIngredientModal" tabindex="-1" aria-labelledby="addIngredientModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="addIngredientModalLabel"><i class="fa-solid fa-plus me-1"></i> Add Ingredient</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addIngredientForm" action="{{ url_for('inventory.add_ingredient_route') }}" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="ingName" class="form-label text-light">Ingredient Name *</label>
+                        <input type="text" class="form-control form-dark" id="ingName" name="name" required placeholder="e.g. Beef Patty or Cheddar Cheese">
+                    </div>
+                    <div class="mb-3">
+                        <label for="ingUnit" class="form-label text-light">Measurement Unit *</label>
+                        <input type="text" class="form-control form-dark" id="ingUnit" name="unit" required placeholder="e.g. kg, pcs, liters, grams">
+                    </div>
+                    <div class="mb-3">
+                        <label for="ingReorder" class="form-label text-light">Low Stock Alert Level *</label>
+                        <input type="number" step="0.001" min="0" class="form-control form-dark" id="ingReorder" name="reorder_level" required placeholder="e.g. 5.0">
+                        <div class="form-text text-secondary text-xs">Alert triggers when stock drops below this value.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="ingSupplier" class="form-label text-light">Default Supplier (Optional)</label>
+                        <select class="form-select form-dark" id="ingSupplier" name="default_supplier_id">
+                            <option value="0">Select Supplier</option>
+                            {% for s in suppliers %}
+                            <option value="{{ s.supplier_id }}">{{ s.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="ingCurrentQty" class="form-label text-light">Current Stock Level (Optional, default 0.00)</label>
+                        <input type="number" step="0.001" min="0" class="form-control form-dark" id="ingCurrentQty" name="current_qty" placeholder="e.g. 10.0">
+                    </div>
+                    <div class="mb-3">
+                        <label for="ingImage" class="form-label text-light">Ingredient Image File</label>
+                        <input type="file" class="form-control form-dark" id="ingImage" name="image" accept="image/*">
+                        <div class="form-text text-secondary text-xs">Or specify a manual URL / path below.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="ingImageLink" class="form-label text-light">Or Image Path / URL</label>
+                        <input type="text" class="form-control form-dark" id="ingImageLink" name="image_path" placeholder="e.g. img/placeholders/tomato.jpg">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="addIngredientForm" class="btn btn-emerald">Add Ingredient</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 11. Edit Ingredient Modal [NEW] -->
+<div class="modal fade" id="editIngredientModal" tabindex="-1" aria-labelledby="editIngredientModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="editIngredientModalLabel"><i class="fa-solid fa-pen-to-square me-1"></i> Edit Ingredient</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editIngredientForm" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="editName" class="form-label text-light">Ingredient Name *</label>
+                        <input type="text" class="form-control form-dark" id="editName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editUnit" class="form-label text-light">Measurement Unit *</label>
+                        <input type="text" class="form-control form-dark" id="editUnit" name="unit" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editReorderLevel" class="form-label text-light">Low Stock Alert Level *</label>
+                        <input type="number" step="0.001" min="0" class="form-control form-dark" id="editReorderLevel" name="reorder_level" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editDefaultSupplier" class="form-label text-light">Default Supplier (Optional)</label>
+                        <select class="form-select form-dark" id="editDefaultSupplier" name="default_supplier_id">
+                            <option value="0">Select Supplier</option>
+                            {% for s in suppliers %}
+                            <option value="{{ s.supplier_id }}">{{ s.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editIsActive" class="form-label text-light">Status *</label>
+                        <select class="form-select form-dark" id="editIsActive" name="is_active" required>
+                            <option value="1">Active</option>
+                            <option value="0">Inactive</option>
+                        </select>
+                        <div class="form-text text-secondary text-xs">Inactive ingredients are hidden from Supplier Orders.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editImage" class="form-label text-light">Update Image File</label>
+                        <input type="file" class="form-control form-dark" id="editImage" name="image" accept="image/*">
+                        <div class="form-text text-secondary text-xs">Or specify a manual URL / path below.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editImagePath" class="form-label text-light">Or Image Path / URL</label>
+                        <input type="text" class="form-control form-dark" id="editImagePath" name="image_path" placeholder="e.g. img/placeholders/tomato.jpg">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="editIngredientForm" class="btn btn-emerald">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 12. Ingredient History Modal [NEW] -->
+<div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="historyModalLabel"><i class="fa-solid fa-history me-1"></i> Stock Change History: <span id="historyIngredientName"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-glass table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Action</th>
+                                <th>Quantity Changed</th>
+                                <th>Note / Reason</th>
+                                <th>User</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTbody">
+                            <!-- Populated dynamically via JS fetch -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-emerald" data-bs-dismiss="modal">Done</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    /* Data bridge - passes Jinja template variables to the external JS */
+    window.__INV_DATA = {
+        ingredientChoices: {{ ingredient_choices|tojson|safe }},
+        activeTab: "{{ active_tab }}",
+        lastSuppliers: {{ last_suppliers|tojson|safe }},
+        spendBySupplier: {{ spend_by_supplier|tojson|safe }}
+    };
+</script>
+<script src="{{ url_for('static', filename='js/inventory.js') }}?v=1.1"></script>
+{% endblock %}
+

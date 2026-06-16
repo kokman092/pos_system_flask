@@ -1,0 +1,12 @@
+{% extends "base/base.html" %}
+
+{% block body %}
+<div class="d-flex align-items-center justify-content-center vh-100 bg-dark">
+    <div class="text-center">
+        <h1 class="display-1 fw-bold text-emerald">404</h1>
+        <h2 class="text-light mb-4">Page Not Found</h2>
+        <p class="text-secondary mb-4">The page you're looking for doesn't exist or has been moved.</p>
+        <a href="{{ url_for('dashboard.index') }}" class="btn btn-emerald"><i class="fa-solid fa-house me-2"></i>Return Home</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "base/base.html" %}
+
+{% block body %}
+<div class="d-flex align-items-center justify-content-center vh-100">
+    <div class="card glass-card shadow-lg p-4 fade-in-up" style="max-width: 400px; width: 100%;">
+        <div class="text-center mb-4">
+            <h3 class="text-emerald fw-bold">Create New Password</h3>
+            <p class="text-secondary small mb-0">Must contain uppercase, lowercase, number and special char.</p>
+        </div>
+
+        {% include 'partials/flash_messages.html' %}
+
+        <form method="POST" action="{{ url_for('auth.reset') }}">
+            {{ form.csrf_token }}
+            {{ form.token() }}
+
+            <div class="mb-3">
+                {{ form.password.label(class="form-label text-light") }}
+                {{ form.password(class="form-control form-dark", autocomplete="new-password") }}
+                {% for error in form.password.errors %}
+                    <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <div class="mb-4">
+                {{ form.confirm_password.label(class="form-label text-light") }}
+                {{ form.confirm_password(class="form-control form-dark", autocomplete="new-password") }}
+                {% for error in form.confirm_password.errors %}
+                    <div class="text-danger small mt-1"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <button type="submit" class="btn btn-emerald w-100 fw-bold py-2">Save Password</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

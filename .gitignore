@@ -1,0 +1,29 @@
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Environments and Virtualenvs
+.venv/
+venv/
+ENV/
+env/
+
+# Instance-specific config & Local databases
+instance/
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.local
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+logs/
+*.log

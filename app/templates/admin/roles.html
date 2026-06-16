@@ -1,0 +1,261 @@
+{% extends "base/admin_base.html" %}
+
+{% block page_title %}Roles & Permissions{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-emerald px-3" data-bs-toggle="modal" data-bs-target="#addRoleModal">
+    <i class="fa-solid fa-plus me-1"></i> Add Custom Role
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <!-- Left Column: Roles list -->
+    <div class="col-xl-4 col-lg-5">
+        <div class="card glass-card h-100 mb-4 mb-lg-0">
+            <div class="glass-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-semibold text-light"><i class="fa-solid fa-users-gear text-emerald me-2"></i>Access Roles</h5>
+                <span class="badge bg-secondary">{{ roles|length }} roles</span>
+            </div>
+            <div class="card-body p-2" style="max-height: 700px; overflow-y: auto;">
+                <div class="nav flex-column nav-pills gap-2" id="roles-tab" role="tablist" aria-orientation="vertical">
+                    {% for r in roles %}
+                    <button class="nav-link text-start p-3 w-100 rounded position-relative role-pill-btn {% if loop.first %}active{% endif %}"
+                            id="role-tab-{{ r.role_id }}"
+                            data-bs-toggle="pill"
+                            data-bs-target="#role-pane-{{ r.role_id }}"
+                            type="button"
+                            role="tab"
+                            aria-controls="role-pane-{{ r.role_id }}"
+                            aria-selected="{% if loop.first %}true{% else %}false{% endif %}"
+                            style="transition: all 0.2s ease;">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1 fw-bold text-light d-flex align-items-center gap-2">
+                                    {{ r.role_name }}
+                                    {% if r.is_system_role == 1 %}
+                                    <span class="badge bg-primary bg-opacity-20 text-primary border border-primary text-xs" style="font-size: 0.6rem;">System</span>
+                                    {% endif %}
+                                </h6>
+                                <p class="text-secondary small mb-0 text-truncate" style="max-width: 250px;">{{ r.description or 'No description provided.' }}</p>
+                            </div>
+                            <span class="badge bg-dark bg-opacity-40 text-secondary border border-secondary" style="font-size: 0.7rem;">
+                                {{ r.employees|length }} user(s)
+                            </span>
+                        </div>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Permission Matrix for selected Role -->
+    <div class="col-xl-8 col-lg-7">
+        <div class="tab-content" id="roles-tabContent">
+            {% for r in roles %}
+            <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="role-pane-{{ r.role_id }}" role="tabpanel" aria-labelledby="role-tab-{{ r.role_id }}">
+                <div class="card glass-card">
+                    <div class="glass-card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0 fw-bold text-light"><i class="fa-solid fa-shield-halved text-emerald me-2"></i>{{ r.role_name }} Permissions</h5>
+                            <small class="text-secondary">{{ r.description or 'Configure access parameters for this user group.' }}</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <!-- Duplicate Role Action -->
+                            <form action="{{ url_for('roles.duplicate_role', id=r.role_id) }}" method="POST" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-info" title="Duplicate Role">
+                                    <i class="fa-solid fa-clone me-1"></i> Duplicate
+                                </button>
+                            </form>
+
+                            <!-- Delete Role Action (if not system) -->
+                            {% if r.is_system_role == 0 %}
+                            <form action="{{ url_for('roles.delete_role', id=r.role_id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this custom role?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="fa-solid fa-trash me-1"></i> Delete
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Permission Editor Form -->
+                        <form action="{{ url_for('roles.edit_role', id=r.role_id) }}" method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            
+                            {% if r.is_system_role == 0 %}
+                            <div class="row mb-4 g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary small fw-bold">ROLE NAME</label>
+                                    <input type="text" name="role_name" class="form-control form-dark" value="{{ r.role_name }}" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary small fw-bold">DESCRIPTION</label>
+                                    <input type="text" name="description" class="form-control form-dark" value="{{ r.description or '' }}">
+                                </div>
+                            </div>
+                            {% else %}
+                            <input type="hidden" name="description" value="{{ r.description or '' }}">
+                            {% endif %}
+
+                            {% if r.role_name == 'Owner / Admin' %}
+                            <div class="alert alert-info bg-info bg-opacity-10 border-info text-light d-flex align-items-center mb-4">
+                                <i class="fa-solid fa-circle-info text-info me-3 fs-4"></i>
+                                <div>
+                                    <strong>Super User Protection:</strong> The Owner / Admin role automatically possesses all permissions. These settings are locked and cannot be disabled.
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <h6 class="text-light fw-bold mb-3 border-bottom border-secondary pb-2"><i class="fa-solid fa-list-check text-emerald me-1"></i> Permission Matrix</h6>
+                            <div class="table-responsive">
+                                <table class="table table-glass table-hover align-middle mb-4">
+                                    <thead>
+                                        <tr>
+                                            <th>Module / Section</th>
+                                            <th class="text-center" style="width: 100px;">View</th>
+                                            <th class="text-center" style="width: 100px;">Create</th>
+                                            <th class="text-center" style="width: 100px;">Edit</th>
+                                            <th class="text-center" style="width: 100px;">Approve</th>
+                                            <th class="text-center" style="width: 100px;">Delete</th>
+                                            <th class="text-center" style="width: 100px;">Export</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for module in modules %}
+                                        <tr>
+                                            <td class="fw-bold text-light text-capitalize">
+                                                <i class="fa-solid 
+                                                    {% if module == 'dashboard' %}fa-chart-pie
+                                                    {% elif module == 'pos' %}fa-cash-register
+                                                    {% elif module == 'inventory' %}fa-boxes-stacked
+                                                    {% elif module == 'suppliers' %}fa-truck-field
+                                                    {% elif module == 'purchasing' %}fa-file-signature
+                                                    {% elif module == 'reports' %}fa-file-invoice-dollar
+                                                    {% else %}fa-gears{% endif %} 
+                                                    text-emerald me-2" style="width: 18px;"></i>
+                                                {{ module }}
+                                            </td>
+                                            {% for action in actions %}
+                                                {% set p_key = module ~ ':' ~ action %}
+                                                {% set matched_perm = namespace(val=none) %}
+                                                {% for list_p in grouped_permissions[module] %}
+                                                    {% if list_p.action == action %}
+                                                        {% set matched_perm.val = list_p %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                                
+                                                <td class="text-center">
+                                                    {% if matched_perm.val %}
+                                                    <div class="form-check form-switch d-inline-block">
+                                                        <input class="form-check-input" type="checkbox" name="permissions" value="{{ matched_perm.val.permission_id }}"
+                                                            {% if matched_perm.val in r.permissions %}checked{% endif %}
+                                                            {% if r.role_name == 'Owner / Admin' %}disabled{% endif %}>
+                                                    </div>
+                                                    {% else %}
+                                                    <span class="text-secondary">—</span>
+                                                    {% endif %}
+                                                </td>
+                                            {% endfor %}
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {% if r.role_name != 'Owner / Admin' %}
+                            <div class="d-flex justify-content-end">
+                                <button type="submit" class="btn btn-emerald px-4"><i class="fa-solid fa-save me-1"></i> Save Role Permissions</button>
+                            </div>
+                            {% endif %}
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- User Quick Role Assignment Row -->
+<div class="card glass-card mt-4 fade-in-up">
+    <div class="glass-card-header">
+        <h5 class="mb-0 fw-semibold text-light"><i class="fa-solid fa-users fa-fw text-emerald me-2"></i>Role Assignments</h5>
+        <small class="text-secondary">Quickly reassign access roles to branch employees</small>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-glass table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Email</th>
+                        <th>Current Access Role</th>
+                        <th>Modify Assigned Role</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for emp in employees %}
+                    <tr>
+                        <td class="fw-bold text-light">{{ emp.full_name }}</td>
+                        <td class="text-secondary font-monospace">{{ emp.email }}</td>
+                        <td>
+                            <span class="badge border bg-dark bg-opacity-30 
+                                {% if emp.role_rel.role_name == 'Owner / Admin' %}text-emerald border-emerald
+                                {% elif emp.role_rel.role_name == 'Branch Manager' %}text-info border-info
+                                {% elif emp.role_rel.role_name == 'Cashier' %}text-warning border-warning
+                                {% else %}text-light border-secondary{% endif %}">
+                                {{ emp.role_rel.role_name if emp.role_rel else 'None' }}
+                            </span>
+                        </td>
+                        <td>
+                            <form action="{{ url_for('roles.assign_user') }}" method="POST" class="d-inline-flex gap-2 align-items-center">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="employee_id" value="{{ emp.employee_id }}">
+                                <select name="role_id" class="form-select form-select-sm form-dark" style="max-width: 200px;" onchange="this.form.submit()">
+                                    {% for r in roles %}
+                                    <option value="{{ r.role_id }}" {% if emp.role_id == r.role_id %}selected{% endif %}>{{ r.role_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Role Modal -->
+<div class="modal fade" id="addRoleModal" tabindex="-1" aria-labelledby="addRoleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark border-secondary text-light">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="addRoleModalLabel"><i class="fa-solid fa-users-gear me-2"></i>Create Custom Role</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('roles.add_role') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="newRoleName" class="form-label text-light fw-bold">Role Name *</label>
+                        <input type="text" class="form-control form-dark" id="newRoleName" name="role_name" placeholder="e.g. Floor Supervisor or Head Chef" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newRoleDesc" class="form-label text-light">Description</label>
+                        <textarea class="form-control form-dark" id="newRoleDesc" name="description" rows="3" placeholder="Briefly describe what this access group is for..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-emerald"><i class="fa-solid fa-check me-2"></i>Create Role</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

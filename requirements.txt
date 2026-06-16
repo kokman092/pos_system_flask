@@ -1,0 +1,13 @@
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.7
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+Flask-Bcrypt==1.0.1
+Flask-CORS==4.0.1
+Flask-Mail==0.10.0
+Flask-APScheduler==1.13.1
+email-validator==2.1.1
+pytest==8.2.2
+reportlab==4.4.10
+openpyxl==3.1.5

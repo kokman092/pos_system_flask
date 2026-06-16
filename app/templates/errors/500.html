@@ -1,0 +1,12 @@
+{% extends "base/base.html" %}
+
+{% block body %}
+<div class="d-flex align-items-center justify-content-center vh-100 bg-dark">
+    <div class="text-center">
+        <h1 class="display-1 fw-bold text-danger">500</h1>
+        <h2 class="text-light mb-4">Server Error</h2>
+        <p class="text-secondary mb-4">Something went wrong on our end. Please try again later.</p>
+        <button onclick="window.location.reload()" class="btn btn-outline-light"><i class="fa-solid fa-rotate-right me-2"></i>Retry</button>
+    </div>
+</div>
+{% endblock %}

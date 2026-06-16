@@ -1,0 +1,56 @@
+{% extends "base/app_base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="fw-bold text-emerald m-0"><i class="fa-solid fa-fire-burner me-2"></i>Kitchen Display</h3>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-light" aria-label="Filter by station"><i class="fa-solid fa-filter me-1"></i> All Stations</button>
+        <button class="btn btn-outline-light" aria-label="Toggle fullscreen"><i class="fa-solid fa-expand"></i></button>
+    </div>
+</div>
+
+<div class="row flex-row flex-nowrap overflow-auto pb-3 gap-3 px-1">
+    {% for order in orders %}
+    <div class="col-12 col-md-6 col-lg-4 col-xl-3 p-0" style="min-width: 300px;">
+        <div class="ticket h-100 shadow">
+            <div class="ticket-header {% if order.elapsed_min|default(0) >= 20 %}ticket-danger{% elif order.elapsed_min|default(0) >= 10 %}ticket-warning{% endif %}">
+                <div>
+                    <h4 class="mb-0 fw-bold">#{{ order.order.order_id|default('—') }}</h4>
+                    <span class="badge bg-dark border border-secondary text-light mt-1">
+                        {% if order.table %}
+                            Table {{ order.table.table_number }}
+                        {% else %}
+                            {{ order.order.order_type.replace('_', ' ').title() if order.order.order_type else 'Takeaway' }}
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="text-end">
+                    <div class="fs-3 fw-bold">{{ order.elapsed_min|default(0) }}m</div>
+                </div>
+            </div>
+            <ul class="list-group list-group-flush bg-transparent">
+                {% for item in order['items']|default([]) %}
+                <li class="list-group-item bg-transparent text-light border-secondary p-3">
+                    <div class="fw-bold fs-5">{{ item.quantity }}x {{ item.menu_item.name }}</div>
+                    {% if item.notes %}
+                    <div class="text-warning small ms-3">- {{ item.notes }}</div>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            <div class="card-footer bg-transparent border-0 p-3 mt-auto">
+                <button class="btn btn-emerald w-100 py-2 fw-bold" aria-label="Mark order {{ order.order.order_id|default('') }} as served">
+                    <i class="fa-solid fa-bell-concierge me-2"></i> Mark Served
+                </button>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12 text-center text-secondary py-5">
+        <i class="fa-solid fa-check-circle fs-1 mb-3 d-block text-success"></i>
+        <h4>All caught up!</h4>
+        <p>No active orders in the kitchen.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

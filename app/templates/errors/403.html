@@ -1,0 +1,12 @@
+{% extends "base/base.html" %}
+
+{% block body %}
+<div class="d-flex align-items-center justify-content-center vh-100 bg-dark">
+    <div class="text-center">
+        <h1 class="display-1 fw-bold text-emerald">403</h1>
+        <h2 class="text-light mb-4">Access Denied</h2>
+        <p class="text-secondary mb-4">You don't have permission to view this resource.</p>
+        <button onclick="window.history.back()" class="btn btn-emerald"><i class="fa-solid fa-arrow-left me-2"></i>Go Back</button>
+    </div>
+</div>
+{% endblock %}

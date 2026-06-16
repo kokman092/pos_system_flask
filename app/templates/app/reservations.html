@@ -1,0 +1,277 @@
+{% extends "base/app_base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="fw-bold m-0"><i class="fa-solid fa-book-open text-emerald me-2"></i>Reservations</h3>
+    <button class="btn btn-emerald" data-bs-toggle="modal" data-bs-target="#resModal" aria-label="New reservation"><i class="fa-solid fa-plus me-1"></i> New Reservation</button>
+</div>
+
+<div class="card glass-card">
+    <div class="glass-card-header d-flex gap-2 flex-wrap align-items-center justify-content-between">
+        <h5 class="mb-0 fw-semibold text-light">Active Reservations</h5>
+        <div class="d-flex gap-2 flex-wrap">
+            <input type="date" id="dateFilter" class="form-control form-dark w-auto" aria-label="Filter by date">
+            <div class="input-group" style="width: 260px;">
+                <span class="input-group-text bg-dark border-secondary text-secondary"><i class="fa-solid fa-search"></i></span>
+                <input type="text" id="resSearch" class="form-control form-dark" placeholder="Search name or phone..." aria-label="Search reservations">
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        {% if reservations %}
+        <div class="table-responsive">
+            <table class="table table-glass table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Guest</th>
+                        <th>Phone</th>
+                        <th>Party Size</th>
+                        <th>Date & Time</th>
+                        <th>Table</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="reservations-table-body">
+                    {% for res in reservations %}
+                    <tr class="res-row" data-date="{{ res.reserved_at.strftime('%Y-%m-%d') }}">
+                        <td>
+                            <div class="fw-semibold">{{ res.customer_name }}</div>
+                            {% if res.customer_email %}
+                            <small class="text-secondary d-block">{{ res.customer_email }}</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-secondary">{{ res.customer_phone or '—' }}</td>
+                        <td>
+                            <span class="badge bg-dark border border-secondary"><i class="fa-solid fa-users text-emerald me-1"></i>{{ res.party_size }}</span>
+                        </td>
+                        <td>
+                            <span class="fw-semibold"><i class="fa-regular fa-clock text-secondary me-1"></i>{{ res.reserved_at.strftime('%Y-%m-%d %I:%M %p') }}</span>
+                        </td>
+                        <td>
+                            {% if res.table %}
+                            <span class="badge badge-emerald-soft">Table {{ res.table.table_number }}</span>
+                            {% else %}
+                            <span class="text-secondary italic">Auto Assigned</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if res.status == 'pending' %}
+                                <span class="badge bg-warning text-dark">Pending</span>
+                            {% elif res.status == 'confirmed' %}
+                                <span class="badge bg-info text-white">Confirmed</span>
+                            {% elif res.status == 'seated' %}
+                                <span class="badge bg-success text-white">Seated</span>
+                            {% elif res.status == 'cancelled' %}
+                                <span class="badge bg-danger text-white">Cancelled</span>
+                            {% elif res.status == 'no_show' %}
+                                <span class="badge bg-secondary text-white">No Show</span>
+                            {% else %}
+                                <span class="badge bg-light text-dark">{{ res.status|title }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <div class="d-inline-flex gap-1">
+                                {% if res.status == 'pending' %}
+                                <form action="{{ url_for('reservations.status', id=res.reservation_id) }}" method="POST" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="status" value="confirmed">
+                                    <button type="submit" class="btn btn-sm btn-outline-success" aria-label="Confirm reservation" title="Confirm Reservation"><i class="fa-solid fa-check"></i></button>
+                                </form>
+                                <form action="{{ url_for('reservations.status', id=res.reservation_id) }}" method="POST" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="status" value="cancelled">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="Cancel reservation" title="Cancel Reservation" onclick="return confirm('Cancel reservation for {{ res.customer_name }}?')"><i class="fa-solid fa-ban"></i></button>
+                                </form>
+                                {% elif res.status == 'confirmed' %}
+                                <form action="{{ url_for('reservations.status', id=res.reservation_id) }}" method="POST" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="status" value="seated">
+                                    <button type="submit" class="btn btn-sm btn-outline-emerald" aria-label="Seat guest" title="Seat Guest"><i class="fa-solid fa-chair"></i></button>
+                                </form>
+                                <form action="{{ url_for('reservations.status', id=res.reservation_id) }}" method="POST" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="status" value="no_show">
+                                    <button type="submit" class="btn btn-sm btn-outline-warning" aria-label="Mark as no show" title="Mark No Show"><i class="fa-solid fa-user-slash"></i></button>
+                                </form>
+                                <form action="{{ url_for('reservations.status', id=res.reservation_id) }}" method="POST" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="status" value="cancelled">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="Cancel reservation" title="Cancel Reservation" onclick="return confirm('Cancel reservation for {{ res.customer_name }}?')"><i class="fa-solid fa-ban"></i></button>
+                                </form>
+                                {% endif %}
+                                <button class="btn btn-sm btn-outline-light edit-res-btn" 
+                                        data-id="{{ res.reservation_id }}" 
+                                        data-name="{{ res.customer_name }}"
+                                        data-status="{{ res.status }}"
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#editResModal" 
+                                        aria-label="Edit status for {{ res.customer_name }}"
+                                        title="Change Status"><i class="fa-solid fa-pen-to-square"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+            {% set icon = 'fa-solid fa-calendar-xmark' %}
+            {% set title = 'No reservations found' %}
+            {% set message = 'There are no reservations for the selected date.' %}
+            {% include 'partials/empty_state.html' %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modals -->
+
+<!-- 1. New Reservation Modal -->
+<div class="modal fade" id="resModal" tabindex="-1" aria-labelledby="resModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="resModalLabel">New Reservation</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="newResForm" action="{{ url_for('reservations.index') }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="customer_name" class="form-label text-light">Customer Name</label>
+                        {{ form.customer_name(class="form-control form-dark", required=True, placeholder="e.g. John Doe") }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="customer_email" class="form-label text-light">Email Address</label>
+                        {{ form.customer_email(class="form-control form-dark", placeholder="e.g. john@example.com") }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="customer_phone" class="form-label text-light">Phone Number</label>
+                        {{ form.customer_phone(class="form-control form-dark", placeholder="e.g. +1234567890") }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="party_size" class="form-label text-light">Party Size</label>
+                        {{ form.party_size(class="form-control form-dark", required=True, type="number", min="1", max="30", value="2") }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="table_id" class="form-label text-light">Table Assignment</label>
+                        {{ form.table_id(class="form-select form-dark") }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="reserved_at" class="form-label text-light">Reservation Date & Time</label>
+                        {{ form.reserved_at(class="form-control form-dark", required=True, type="datetime-local") }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="notes" class="form-label text-light">Special Notes</label>
+                        {{ form.notes(class="form-control form-dark", rows="3", placeholder="e.g. Birthday celebration, window seat...") }}
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="submit" form="newResForm" class="btn btn-emerald">Create Reservation</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Edit Status Modal -->
+<div class="modal fade" id="editResModal" tabindex="-1" aria-labelledby="editResModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="editResModalLabel">Change Reservation Status</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editResForm" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label class="form-label text-secondary">Guest Name</label>
+                        <input type="text" class="form-control form-dark" id="editGuestName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editStatus" class="form-label text-light">Status</label>
+                        <select class="form-select form-dark" id="editStatus" name="status" required>
+                            <option value="pending">Pending</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="seated">Seated</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="no_show">No Show</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="submit" form="editResForm" class="btn btn-emerald">Update Status</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Prevent double submit on new reservation form
+        const newResForm = document.getElementById('newResForm');
+        if (newResForm) {
+            newResForm.addEventListener('submit', () => {
+                const submitBtn = document.querySelector('button[form="newResForm"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Creating...';
+                }
+            });
+        }
+
+        // Edit Reservation Status Modal population
+        const editResModal = document.getElementById('editResModal');
+        if (editResModal) {
+            editResModal.addEventListener('show.bs.modal', (event) => {
+                const button = event.relatedTarget;
+                const id = button.getAttribute('data-id');
+                const name = button.getAttribute('data-name');
+                const status = button.getAttribute('data-status');
+                
+                editResModal.querySelector('#editResForm').action = `/reservations/${id}/status`;
+                editResModal.querySelector('#editGuestName').value = name;
+                editResModal.querySelector('#editStatus').value = status;
+            });
+        }
+
+        // Live text and date search/filter for reservations
+        const searchInput = document.getElementById('resSearch');
+        const dateFilter = document.getElementById('dateFilter');
+        const rows = document.querySelectorAll('tbody.reservations-table-body tr.res-row');
+
+        function filterReservations() {
+            const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+            const selectedDate = dateFilter ? dateFilter.value : '';
+
+            rows.forEach(row => {
+                const guestName = row.querySelector('.fw-semibold').textContent.toLowerCase();
+                const phone = row.querySelector('.text-secondary').textContent.toLowerCase();
+                const rowDate = row.getAttribute('data-date'); // format YYYY-MM-DD
+
+                const matchesSearch = guestName.includes(searchTerm) || phone.includes(searchTerm);
+                const matchesDate = !selectedDate || rowDate === selectedDate;
+
+                if (matchesSearch && matchesDate) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('input', filterReservations);
+        }
+        if (dateFilter) {
+            dateFilter.addEventListener('change', filterReservations);
+        }
+    });
+</script>
+{% endblock %}

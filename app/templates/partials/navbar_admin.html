@@ -1,0 +1,32 @@
+<header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow border-bottom border-secondary">
+    <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-5 fw-bold text-emerald tracking-wide" href="{{ url_for('dashboard.index') }}">
+        <i class="fa-solid fa-bolt me-2"></i>AURA POS
+    </a>
+    
+    <div class="w-100 px-3 text-light d-flex align-items-center">
+        {% if current_user.is_authenticated and current_user.branch %}
+            <span class="badge bg-secondary me-3"><i class="fa-solid fa-store me-1"></i> {{ current_user.branch.name | default('Main Branch') }}</span>
+        {% endif %}
+        <div class="d-none d-md-flex gap-3">
+            <a href="{{ url_for('dashboard.dashboard') }}" class="text-decoration-none text-light hover-emerald">Dashboard</a>
+            <a href="{{ url_for('reports.index') }}" class="text-decoration-none text-light hover-emerald">Reports</a>
+            <a href="{{ url_for('settings.index') }}" class="text-decoration-none text-light hover-emerald">Settings</a>
+        </div>
+    </div>
+    
+    <div class="navbar-nav">
+        <div class="nav-item text-nowrap d-flex align-items-center pe-3">
+            <div class="dropdown">
+                <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fa-solid fa-circle-user fs-4 me-2"></i>
+                    <strong>{{ current_user.full_name | default('Admin') }}</strong>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow">
+                    <li><a class="dropdown-item" href="#">Profile</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}">Sign out</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</header>

@@ -1,0 +1,17 @@
+<div class="modal fade" id="{{ modal_id|default('genericModal') }}" tabindex="-1" aria-labelledby="{{ modal_id|default('genericModal') }}Label" aria-hidden="true">
+    <div class="modal-dialog {{ modal_class|default('') }}">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="{{ modal_id|default('genericModal') }}Label">{{ modal_title|default('Modal') }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                {{ modal_body|default('')|safe }}
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-emerald">{{ modal_action|default('Save') }}</button>
+            </div>
+        </div>
+    </div>
+</div>

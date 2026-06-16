@@ -1,0 +1,269 @@
+{% extends "base/admin_base.html" %}
+
+{% block page_title %}Employees{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-emerald" data-bs-toggle="modal" data-bs-target="#inviteModal" aria-label="Invite employee"><i class="fa-solid fa-user-plus me-1"></i> Invite Employee</button>
+{% endblock %}
+
+{% block content %}
+<div class="card glass-card">
+    <div class="glass-card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fw-semibold text-light">Team Members</h5>
+        <div class="input-group" style="width: 260px;">
+            <span class="input-group-text bg-dark border-secondary text-secondary"><i class="fa-solid fa-search"></i></span>
+            <input type="text" class="form-control form-dark" placeholder="Search employees..." aria-label="Search employees">
+        </div>
+    </div>
+    <div class="card-body p-0">
+        {% if employees %}
+        <div class="table-responsive">
+            <table class="table table-glass table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Branch</th>
+                        <th>Verified</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for emp in employees %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="bg-emerald bg-opacity-10 text-emerald rounded-circle d-flex align-items-center justify-content-center me-3 fw-bold" style="width: 36px; height: 36px; font-size: 0.85rem;">
+                                    {{ emp.full_name[0]|upper }}
+                                </div>
+                                <span class="fw-semibold">{{ emp.full_name }}</span>
+                            </div>
+                        </td>
+                        <td class="text-secondary">{{ emp.email }}</td>
+                        <td><span class="badge bg-secondary">{{ emp.role_rel.role_name if emp.role_rel else emp.role|title }}</span></td>
+                        <td>{{ emp.branch.name if emp.branch else 'All' }}</td>
+                        <td>
+                            {% if emp.email_verified %}
+                                <i class="fa-solid fa-circle-check text-success" aria-label="Verified"></i>
+                            {% else %}
+                                <i class="fa-solid fa-circle-xmark text-secondary" aria-label="Not verified"></i>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if emp.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-danger">Deactivated</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-light edit-employee-btn" 
+                                    data-id="{{ emp.employee_id }}" 
+                                    data-name="{{ emp.full_name }}"
+                                    data-role-id="{{ emp.role_id if emp.role_id else '' }}"
+                                    data-active="{{ 'true' if emp.is_active else 'false' }}"
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#editEmployeeModal"
+                                    aria-label="Edit role for {{ emp.full_name }}">
+                                <i class="fa-solid fa-user-shield"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+            {% set icon = 'fa-solid fa-users' %}
+            {% set title = 'No employees found' %}
+            {% set message = 'Invite your team members to grant them POS access.' %}
+            {% include 'partials/empty_state.html' %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modals -->
+
+<!-- 1. Invite Employee Modal -->
+<div class="modal fade" id="inviteModal" tabindex="-1" aria-labelledby="inviteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="inviteModalLabel">Invite Employee</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="inviteForm" action="{{ url_for('employees.invite') }}" method="POST">
+                {{ invite_form.hidden_tag() }}
+                <div class="modal-body">
+                    <!-- Full Name -->
+                    <div class="mb-3">
+                        <label for="full_name" class="form-label text-light">Full Name</label>
+                        {{ invite_form.full_name(class="form-control form-dark", required=True, placeholder="e.g. John Doe") }}
+                        {% for error in invite_form.full_name.errors %}
+                            <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Email -->
+                    <div class="mb-3">
+                        <label for="email" class="form-label text-light">Email Address</label>
+                        {{ invite_form.email(class="form-control form-dark", required=True, placeholder="e.g. john@pos.com") }}
+                        {% for error in invite_form.email.errors %}
+                            <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Password -->
+                    <div class="mb-3">
+                        <label for="password" class="form-label text-light">Password</label>
+                        {{ invite_form.password(class="form-control form-dark", required=True, placeholder="Min 8 chars, 1 upper, 1 number") }}
+                        {% for error in invite_form.password.errors %}
+                            <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Confirm Password -->
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label text-light">Confirm Password</label>
+                        {{ invite_form.confirm_password(class="form-control form-dark", required=True, placeholder="Repeat password") }}
+                        {% for error in invite_form.confirm_password.errors %}
+                            <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Role -->
+                    <div class="mb-3">
+                        <label for="role_id" class="form-label text-light">Role</label>
+                        {{ invite_form.role_id(class="form-select form-dark", required=True) }}
+                        {% for error in invite_form.role_id.errors %}
+                            <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Branch -->
+                    <div class="mb-3">
+                        <label for="branch_id" class="form-label text-light">Branch</label>
+                        {{ invite_form.branch_id(class="form-select form-dark", required=True) }}
+                        {% for error in invite_form.branch_id.errors %}
+                            <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-emerald">Create Employee</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Edit Employee Modal -->
+<div class="modal fade" id="editEmployeeModal" tabindex="-1" aria-labelledby="editEmployeeModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-emerald fw-bold" id="editEmployeeModalLabel">Edit Employee</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Edit Details / Name Form -->
+                <form id="editEmployeeForm" method="POST" class="mb-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="editEmployeeName" class="form-label text-light">Full Name</label>
+                        <input type="text" class="form-control form-dark" id="editEmployeeName" name="full_name" required>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-emerald">Update Name</button>
+                </form>
+                
+                <hr class="border-secondary">
+                
+                <!-- Change Role Form -->
+                <form id="changeRoleForm" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="editEmployeeRole" class="form-label text-light">Role</label>
+                        <select class="form-select form-dark" id="editEmployeeRole" name="new_role_id" required>
+                            {% for r in roles_list %}
+                            <option value="{{ r.role_id }}">{{ r.role_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-emerald">Update Role</button>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary justify-content-between">
+                <div>
+                    <form id="deactivateEmployeeForm" method="POST" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-outline-danger" id="deactivateBtn" onclick="return confirm('Are you sure you want to deactivate this employee?')">Deactivate</button>
+                    </form>
+                </div>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Edit Employee Modal population
+        const editEmployeeModal = document.getElementById('editEmployeeModal');
+        if (editEmployeeModal) {
+            editEmployeeModal.addEventListener('show.bs.modal', (event) => {
+                const button = event.relatedTarget;
+                const id = button.getAttribute('data-id');
+                const name = button.getAttribute('data-name');
+                const roleId = button.getAttribute('data-role-id');
+                const active = button.getAttribute('data-active') === 'true';
+                
+                const editForm = editEmployeeModal.querySelector('#editEmployeeForm');
+                const roleForm = editEmployeeModal.querySelector('#changeRoleForm');
+                const deactivateForm = editEmployeeModal.querySelector('#deactivateEmployeeForm');
+                
+                const nameInput = editEmployeeModal.querySelector('#editEmployeeName');
+                const roleSelect = editEmployeeModal.querySelector('#editEmployeeRole');
+                const deactivateBtn = editEmployeeModal.querySelector('#deactivateBtn');
+                
+                editForm.action = `/admin/employees/${id}/edit`;
+                roleForm.action = `/admin/employees/${id}/role`;
+                deactivateForm.action = `/admin/employees/${id}/deactivate`;
+                
+                nameInput.value = name;
+                roleSelect.value = roleId;
+                
+                if (active) {
+                    deactivateBtn.style.display = '';
+                } else {
+                    deactivateBtn.style.display = 'none'; // already deactivated
+                }
+            });
+        }
+
+        // Search function for employees
+        const searchInput = document.querySelector('input[placeholder="Search employees..."]');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const term = e.target.value.toLowerCase();
+                const rows = document.querySelectorAll('tbody tr');
+                rows.forEach(row => {
+                    const name = row.querySelector('.fw-semibold').textContent.toLowerCase();
+                    const email = row.querySelector('.text-secondary').textContent.toLowerCase();
+                    const role = row.querySelector('.badge').textContent.toLowerCase();
+                    if (name.includes(term) || email.includes(term) || role.includes(term)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
+    });
+</script>
+{% endblock %}

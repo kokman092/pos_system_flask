@@ -1,0 +1,28 @@
+<nav class="sidebar sidebar-rail d-flex flex-column p-2 h-100 bg-dark border-end border-secondary" style="width: 80px;" aria-label="App navigation">
+    <a href="{{ url_for('pos.pos_index') }}" class="nav-link text-center p-3 mb-2 rounded {{ 'active' if request.endpoint == 'pos.pos_index' else '' }}" title="POS" aria-label="Point of Sale" data-bs-toggle="tooltip" data-bs-placement="right">
+        <i class="fa-solid fa-cash-register fs-4"></i>
+        <div class="small mt-1 d-none d-md-block" style="font-size: 0.7rem;">POS</div>
+    </a>
+    <a href="{{ url_for('kitchen.index') }}" class="nav-link text-center p-3 mb-2 rounded {{ 'active' if request.endpoint == 'kitchen.index' else '' }}" title="Kitchen" aria-label="Kitchen Display" data-bs-toggle="tooltip" data-bs-placement="right">
+        <i class="fa-solid fa-fire-burner fs-4"></i>
+        <div class="small mt-1 d-none d-md-block" style="font-size: 0.7rem;">Kitchen</div>
+    </a>
+    <a href="{{ url_for('kds.index') }}" class="nav-link text-center p-3 mb-2 rounded {{ 'active' if request.endpoint == 'kds.index' else '' }}" title="KDS" aria-label="Kitchen Display System" data-bs-toggle="tooltip" data-bs-placement="right">
+        <i class="fa-solid fa-tv fs-4"></i>
+        <div class="small mt-1 d-none d-md-block" style="font-size: 0.7rem;">KDS</div>
+    </a>
+    <a href="{{ url_for('reservations.index') }}" class="nav-link text-center p-3 mb-2 rounded {{ 'active' if request.endpoint == 'reservations.index' else '' }}" title="Reservations" aria-label="Reservations" data-bs-toggle="tooltip" data-bs-placement="right">
+        <i class="fa-solid fa-book-open fs-4"></i>
+        <div class="small mt-1 d-none d-md-block" style="font-size: 0.7rem;">Reserve</div>
+    </a>
+    <a href="{{ url_for('loyalty.loyalty_page') }}" class="nav-link text-center p-3 mb-2 rounded {{ 'active' if request.endpoint == 'loyalty.loyalty_page' else '' }}" title="Loyalty" aria-label="Loyalty Program" data-bs-toggle="tooltip" data-bs-placement="right">
+        <i class="fa-solid fa-star fs-4"></i>
+        <div class="small mt-1 d-none d-md-block" style="font-size: 0.7rem;">Loyalty</div>
+    </a>
+
+    <div class="mt-auto">
+        <a href="{{ url_for('dashboard.dashboard') }}" class="nav-link text-center p-3 rounded text-secondary hover-emerald" title="Admin Panel" aria-label="Admin Panel" data-bs-toggle="tooltip" data-bs-placement="right">
+            <i class="fa-solid fa-gear fs-4"></i>
+        </a>
+    </div>
+</nav>

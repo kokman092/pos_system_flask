@@ -1,0 +1,76 @@
+/* ─── Inventory Module Styles ─── */
+
+/* Accordion overrides (dark theme) */
+.accordion-item {
+    background: transparent !important;
+    border-bottom: 1px solid var(--glass-border) !important;
+}
+.accordion-button {
+    background: transparent !important;
+    color: var(--slate-100) !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 1.25rem 1.5rem !important;
+}
+.accordion-button:not(.collapsed) {
+    color: var(--emerald) !important;
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-bottom: 1px solid var(--glass-border) !important;
+}
+.accordion-button::after {
+    filter: invert(1) grayscale(1);
+}
+.accordion-body {
+    padding: 1.5rem !important;
+}
+
+/* Modal glass override */
+.modal-content.glass-card {
+    background: rgba(15, 23, 42, 0.95) !important;
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Tab pills (dark theme) */
+.nav-pills .nav-link {
+    background: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid var(--glass-border) !important;
+    color: var(--slate-300) !important;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(8px);
+    padding: 0.6rem 1.2rem;
+}
+.nav-pills .nav-link.active {
+    background: var(--emerald) !important;
+    color: #fff !important;
+    border-color: var(--emerald) !important;
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+}
+.nav-pills .nav-link:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #fff !important;
+}
+
+/* Supplier card hover */
+.supplier-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.supplier-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    border-color: var(--emerald) !important;
+}
+
+/* Utility classes */
+.btn-xs {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    border-radius: 0.2rem;
+}
+.opacity-60 {
+    opacity: 0.6;
+}
+.min-width-0 {
+    min-width: 0;
+}

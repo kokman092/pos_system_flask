@@ -1,0 +1,16 @@
+{% extends "base/base.html" %}
+
+{% block body %}
+    <div class="app-layout vh-100 d-flex flex-column">
+        {% include 'partials/navbar_app.html' %}
+
+        <div class="d-flex flex-grow-1 overflow-hidden">
+            {% include 'partials/sidebar_app.html' %}
+
+            <main class="flex-grow-1 p-3 overflow-auto" role="main">
+                {% include 'partials/flash_messages.html' %}
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+{% endblock %}

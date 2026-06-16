@@ -1,0 +1,552 @@
+{% extends "base/admin_base.html" %}
+
+{% block page_title %}Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ── Dashboard-specific overrides ─────────────────────────────────── */
+    .dash-greeting {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        margin-bottom: 0.25rem;
+    }
+    .dash-date {
+        color: #64748b;
+        font-size: 0.9rem;
+    }
+    .stat-card {
+        position: relative;
+        overflow: hidden;
+    }
+    .stat-card::after {
+        content: '';
+        position: absolute;
+        top: -30%;
+        right: -15%;
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        opacity: 0.06;
+    }
+    .stat-card.accent-emerald  { border-left: 3px solid #10b981; }
+    .stat-card.accent-emerald::after  { background: #10b981; }
+    .stat-card.accent-blue     { border-left: 3px solid #0ea5e9; }
+    .stat-card.accent-blue::after     { background: #0ea5e9; }
+    .stat-card.accent-violet   { border-left: 3px solid #8b5cf6; }
+    .stat-card.accent-violet::after   { background: #8b5cf6; }
+    .stat-card.accent-amber    { border-left: 3px solid #f59e0b; }
+    .stat-card.accent-amber::after    { background: #f59e0b; }
+
+    /* Live pulse dot */
+    .pulse-dot {
+        display: inline-block;
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        background: #10b981;
+        animation: pulse-glow 1.8s infinite;
+    }
+    @keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.55); }
+        50%      { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+    }
+
+    /* Revenue comparison mini-cards */
+    .rev-compare {
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        transition: transform 0.2s;
+    }
+    .rev-compare:hover { transform: translateY(-2px); }
+    .rev-compare.today  { background: rgba(16,185,129,0.07); border: 1px solid rgba(16,185,129,0.15); }
+    .rev-compare.week   { background: rgba(99,102,241,0.07); border: 1px solid rgba(99,102,241,0.15); }
+
+    /* Order status pills */
+    .order-pill {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.85rem 1.1rem;
+        border-radius: 10px;
+        transition: transform 0.2s;
+    }
+    .order-pill:hover { transform: translateX(4px); }
+    .order-pill .pill-icon {
+        width: 42px; height: 42px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+
+    /* Alert item hover */
+    .alert-item {
+        transition: background 0.15s;
+        border-left: 3px solid transparent;
+    }
+    .alert-item:hover {
+        background: rgba(245,158,11,0.06);
+        border-left-color: #f59e0b;
+    }
+
+    /* Animated counter */
+    .count-up {
+        transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="fa-solid fa-circle-exclamation me-2"></i>{{ error }}
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+{% if bundle %}
+<!-- ── Greeting Row ──────────────────────────────────────────────────── -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <div class="dash-greeting">
+            {% set hour = bundle.server_hour|default(12) %}
+            {% if hour < 12 %}Good morning{% elif hour < 17 %}Good afternoon{% else %}Good evening{% endif %}, {{ current_user.full_name.split(' ')[0] }} 👋
+        </div>
+        <div class="dash-date">
+            <i class="fa-regular fa-calendar me-1"></i>
+            {{ bundle.today_label|default('Today') }}
+            <span class="ms-3"><span class="pulse-dot me-1"></span> Live</span>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('reports.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fa-solid fa-chart-line me-1"></i> Full Reports
+        </a>
+    </div>
+</div>
+
+<!-- ── KPI Cards ─────────────────────────────────────────────────────── -->
+<div class="row g-4 mb-4">
+    <div class="col-6 col-xl-3">
+        <div class="stat-card accent-emerald fade-in-up">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="stat-label">REVENUE TODAY</span>
+                <div class="stat-icon bg-emerald bg-opacity-10 text-emerald">
+                    <i class="fa-solid fa-dollar-sign"></i>
+                </div>
+            </div>
+            <div class="stat-value text-emerald">${{ "%.2f"|format(bundle.summary.total_revenue_cents / 100) }}</div>
+            {% if bundle.revenue_comparison %}
+            <div class="mt-2 small">
+                {% if bundle.revenue_comparison.today_pct_change > 0 %}
+                <span class="text-success"><i class="fa-solid fa-arrow-trend-up"></i> +{{ bundle.revenue_comparison.today_pct_change }}%</span>
+                {% elif bundle.revenue_comparison.today_pct_change < 0 %}
+                <span class="text-danger"><i class="fa-solid fa-arrow-trend-down"></i> {{ bundle.revenue_comparison.today_pct_change }}%</span>
+                {% else %}
+                <span class="text-secondary"><i class="fa-solid fa-minus"></i> 0%</span>
+                {% endif %}
+                <span class="text-secondary ms-1">vs yesterday</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card accent-blue fade-in-up" style="animation-delay: 0.1s;">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="stat-label">ORDERS TODAY</span>
+                <div class="stat-icon" style="background: rgba(14,165,233,0.1); color: #0ea5e9;">
+                    <i class="fa-solid fa-receipt"></i>
+                </div>
+            </div>
+            <div class="stat-value text-light">{{ bundle.summary.total_orders }}</div>
+            <div class="text-secondary small mt-1"><i class="fa-solid fa-users me-1"></i>{{ bundle.summary.total_customers }} covers</div>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card accent-violet fade-in-up" style="animation-delay: 0.2s;">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="stat-label">AVG TICKET</span>
+                <div class="stat-icon" style="background: rgba(139,92,246,0.1); color: #8b5cf6;">
+                    <i class="fa-solid fa-chart-simple"></i>
+                </div>
+            </div>
+            <div class="stat-value" style="color: #a78bfa;">${{ "%.2f"|format(bundle.summary.avg_order_cents / 100) }}</div>
+            <div class="text-secondary small mt-1"><i class="fa-solid fa-utensils me-1"></i>Per order</div>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card accent-amber fade-in-up" style="animation-delay: 0.3s;">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="stat-label">ACTIVE TABLES</span>
+                <div class="stat-icon" style="background: rgba(245,158,11,0.1); color: #f59e0b;">
+                    <i class="fa-solid fa-chair"></i>
+                </div>
+            </div>
+            <div class="stat-value" style="color: #fbbf24;">{{ bundle.summary.active_tables }}</div>
+            <div class="text-secondary small mt-1">
+                <i class="fa-solid fa-triangle-exclamation me-1 text-warning"></i>{{ bundle.low_stock_count }} low stock
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Charts + Live Status Row ──────────────────────────────────────── -->
+<div class="row g-4 mb-4">
+    <!-- Hourly Revenue Chart (wider) -->
+    <div class="col-lg-5">
+        <div class="card glass-card h-100">
+            <div class="glass-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-semibold text-light">
+                    <i class="fa-solid fa-chart-area text-emerald me-2"></i>Hourly Revenue
+                </h5>
+            </div>
+            <div class="card-body">
+                <div style="position: relative; height: 240px;">
+                    <canvas id="hourlyChart" aria-label="Hourly revenue area chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payments Doughnut -->
+    <div class="col-lg-3">
+        <div class="card glass-card h-100">
+            <div class="glass-card-header">
+                <h5 class="mb-0 fw-semibold text-light">
+                    <i class="fa-solid fa-credit-card text-emerald me-2"></i>Payments
+                </h5>
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center">
+                <div style="position: relative; width: 100%; height: 220px;">
+                    <canvas id="paymentChart" aria-label="Payment methods doughnut chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Order Status -->
+    <div class="col-lg-4">
+        <div class="card glass-card h-100">
+            <div class="glass-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-semibold text-light">
+                    <span class="pulse-dot me-2"></span>Live Status
+                </h5>
+                <small class="text-secondary" id="live-update-ts">Now</small>
+            </div>
+            <div class="card-body d-flex flex-column gap-3 justify-content-center">
+                <div class="order-pill" style="background: rgba(16,185,129,0.07);">
+                    <div class="pill-icon" style="background: rgba(16,185,129,0.15);">
+                        <i class="fa-solid fa-list-check text-emerald"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="text-secondary small fw-semibold">OPEN ORDERS</div>
+                        <div class="text-light fw-bold fs-4 count-up" id="live-open">{{ bundle.open_orders }}</div>
+                    </div>
+                </div>
+                <div class="order-pill" style="background: rgba(245,158,11,0.07);">
+                    <div class="pill-icon" style="background: rgba(245,158,11,0.15);">
+                        <i class="fa-solid fa-fire-burner text-warning"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="text-secondary small fw-semibold">IN KITCHEN</div>
+                        <div class="text-light fw-bold fs-4 count-up" id="live-kitchen">{{ bundle.kitchen_orders }}</div>
+                    </div>
+                </div>
+                <div class="order-pill" style="background: rgba(139,92,246,0.07);">
+                    <div class="pill-icon" style="background: rgba(139,92,246,0.15);">
+                        <i class="fa-solid fa-star" style="color: #a78bfa;"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="text-secondary small fw-semibold">LOYALTY CUSTOMERS</div>
+                        <div class="text-light fw-bold fs-4 count-up">{{ bundle.customer_snapshot.total_customers }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Revenue Comparison + Top Items + Alerts ───────────────────────── -->
+<div class="row g-4 mb-4">
+    <!-- Revenue Comparison -->
+    <div class="col-lg-4">
+        <div class="card glass-card h-100">
+            <div class="glass-card-header">
+                <h5 class="mb-0 fw-semibold text-light">
+                    <i class="fa-solid fa-chart-simple text-emerald me-2"></i>Revenue vs Previous
+                </h5>
+            </div>
+            <div class="card-body d-flex flex-column gap-3 justify-content-center">
+                {% set rc = bundle.revenue_comparison %}
+                <!-- Today vs Yesterday -->
+                <div class="rev-compare today">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="text-secondary small fw-semibold mb-1">TODAY</div>
+                            <div class="text-light fw-bold fs-5">${{ "%.2f"|format(rc.today_cents / 100) }}</div>
+                            <small class="text-secondary">vs ${{ "%.2f"|format(rc.yesterday_cents / 100) }} yesterday</small>
+                        </div>
+                        <div>
+                            {% if rc.today_pct_change >= 0 %}
+                            <span class="badge fs-6" style="background: rgba(16,185,129,0.2); color: #10b981;">
+                                <i class="fa-solid fa-arrow-trend-up me-1"></i>+{{ rc.today_pct_change }}%
+                            </span>
+                            {% else %}
+                            <span class="badge fs-6" style="background: rgba(220,38,38,0.2); color: #f87171;">
+                                <i class="fa-solid fa-arrow-trend-down me-1"></i>{{ rc.today_pct_change }}%
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <!-- This Week vs Last Week -->
+                <div class="rev-compare week">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="text-secondary small fw-semibold mb-1">THIS WEEK</div>
+                            <div class="text-light fw-bold fs-5">${{ "%.2f"|format(rc.week_cents / 100) }}</div>
+                            <small class="text-secondary">vs ${{ "%.2f"|format(rc.last_week_cents / 100) }} last week</small>
+                        </div>
+                        <div>
+                            {% if rc.week_pct_change >= 0 %}
+                            <span class="badge fs-6" style="background: rgba(99,102,241,0.2); color: #a5b4fc;">
+                                <i class="fa-solid fa-arrow-trend-up me-1"></i>+{{ rc.week_pct_change }}%
+                            </span>
+                            {% else %}
+                            <span class="badge fs-6" style="background: rgba(220,38,38,0.2); color: #f87171;">
+                                <i class="fa-solid fa-arrow-trend-down me-1"></i>{{ rc.week_pct_change }}%
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <!-- Loyalty points -->
+                <div class="rev-compare" style="background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.12);">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="text-secondary small fw-semibold mb-1">LOYALTY POINTS</div>
+                            <div class="text-light fw-bold fs-5">{{ "{:,}".format(bundle.customer_snapshot.points_outstanding) }}</div>
+                            <small class="text-secondary">outstanding balance</small>
+                        </div>
+                        <div class="badge fs-6" style="background: rgba(245,158,11,0.15); color: #fbbf24;">
+                            <i class="fa-solid fa-coins me-1"></i>{{ bundle.customer_snapshot.new_this_month }} new
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Selling Items -->
+    <div class="col-lg-5">
+        <div class="card glass-card h-100">
+            <div class="glass-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-semibold text-light"><i class="fa-solid fa-fire text-warning me-2"></i>Top Selling Items</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-glass table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">#</th>
+                                <th>Item</th>
+                                <th class="text-center">Qty</th>
+                                <th class="text-end pe-4">Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in bundle.summary.top_items[:8] %}
+                            <tr>
+                                <td class="ps-4 text-secondary">{{ loop.index }}</td>
+                                <td class="fw-semibold">{{ item.name }}</td>
+                                <td class="text-center"><span class="badge bg-secondary">{{ item.qty_sold }}</span></td>
+                                <td class="text-end pe-4 text-emerald fw-semibold">${{ "%.2f"|format(item.revenue_cents / 100) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center text-secondary py-4">
+                                <i class="fa-solid fa-chart-bar me-2"></i>No sales yet today
+                            </td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alerts / Low Stock -->
+    <div class="col-lg-3">
+        <div class="card glass-card h-100">
+            <div class="glass-card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-semibold text-light"><i class="fa-solid fa-bell text-warning me-2"></i>Alerts</h5>
+                {% if bundle.low_stock_alerts|length > 0 %}
+                <span class="badge rounded-pill" style="background: rgba(220,38,38,0.2); color: #f87171;">{{ bundle.low_stock_alerts|length }}</span>
+                {% endif %}
+            </div>
+            <div class="card-body p-0" style="max-height: 340px; overflow-y: auto;">
+                <ul class="list-group list-group-flush">
+                    {% for alert in bundle.low_stock_alerts %}
+                    <li class="list-group-item bg-transparent text-light border-secondary px-3 py-3 alert-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fa-solid fa-triangle-exclamation text-warning me-2"></i>
+                                <strong>{{ alert.ingredient_name }}</strong>
+                            </div>
+                            <span class="badge bg-danger">{{ alert.qty_in_stock }} {{ alert.unit|default('') }}</span>
+                        </div>
+                        {% if alert.reorder_level is defined %}
+                        <div class="mt-1 ms-4">
+                            <div class="progress" style="height: 4px; background: rgba(255,255,255,0.06);">
+                                {% set pct = ((alert.qty_in_stock / alert.reorder_level) * 100) if alert.reorder_level > 0 else 0 %}
+                                <div class="progress-bar bg-danger" style="width: {{ [pct, 100]|min }}%;"></div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </li>
+                    {% else %}
+                    <li class="list-group-item bg-transparent text-secondary border-0 px-3 py-4 text-center">
+                        <i class="fa-solid fa-check-circle text-success me-2 fs-4"></i><br>
+                        <span class="mt-2 d-block">All inventory levels healthy</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+    {% set icon = 'fa-solid fa-chart-pie' %}
+    {% set title = 'Dashboard unavailable' %}
+    {% set message = 'Unable to load dashboard data. Please try again.' %}
+    {% include 'partials/empty_state.html' %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if bundle %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.06)';
+
+    const hourlyData = {{ bundle.summary.hourly_revenue|tojson|safe }};
+    const paymentData = {{ bundle.payment_breakdown|tojson|safe }};
+
+    // ── Hourly Revenue Area Chart ────────────────────────────────────
+    const hrCtx = document.getElementById('hourlyChart');
+    if (hrCtx) {
+        const gradient = hrCtx.getContext('2d').createLinearGradient(0, 0, 0, 240);
+        gradient.addColorStop(0, 'rgba(16, 185, 129, 0.25)');
+        gradient.addColorStop(1, 'rgba(16, 185, 129, 0.01)');
+
+        new Chart(hrCtx, {
+            type: 'line',
+            data: {
+                labels: hourlyData.map(d => d.hour),
+                datasets: [{
+                    label: 'Revenue ($)',
+                    data: hourlyData.map(d => d.revenue_cents / 100),
+                    borderColor: '#10b981',
+                    backgroundColor: gradient,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 2,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: '#10b981',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#10b981',
+                    pointHoverBorderWidth: 2,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { intersect: false, mode: 'index' },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        titleColor: '#e2e8f0',
+                        bodyColor: '#94a3b8',
+                        padding: 12,
+                        cornerRadius: 8,
+                        displayColors: false,
+                        callbacks: {
+                            label: ctx => `$${ctx.parsed.y.toFixed(2)}`
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(255,255,255,0.04)' },
+                        ticks: { callback: v => '$' + v }
+                    },
+                    x: {
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    }
+
+    // ── Payment Doughnut Chart ───────────────────────────────────────
+    const payCtx = document.getElementById('paymentChart');
+    if (payCtx) {
+        const colors = ['#10b981', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ec4899'];
+        new Chart(payCtx, {
+            type: 'doughnut',
+            data: {
+                labels: paymentData.map(d => d.method.replace(/_/g,' ').toUpperCase()),
+                datasets: [{
+                    data: paymentData.map(d => d.total_cents / 100),
+                    backgroundColor: colors.slice(0, paymentData.length),
+                    borderWidth: 0,
+                    hoverOffset: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '68%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { padding: 14, usePointStyle: true, pointStyle: 'circle', font: { size: 11 } }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        padding: 12,
+                        callbacks: {
+                            label: ctx => ` $${ctx.parsed.toFixed(2)}`
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // ── Auto-refresh live stats every 60s ────────────────────────────
+    setInterval(async () => {
+        try {
+            const res = await fetch('/dashboard/api/live');
+            if (!res.ok) return;
+            const d = await res.json();
+            if (d.success) {
+                const el = (id) => document.getElementById(id);
+                if (el('live-open'))    el('live-open').textContent    = d.data.open_orders;
+                if (el('live-kitchen')) el('live-kitchen').textContent = d.data.kitchen_orders;
+                if (el('live-update-ts')) el('live-update-ts').textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            }
+        } catch(e) { /* silently retry next cycle */ }
+    }, 60000);
+});
+</script>
+{% endif %}
+{% endblock %}
