@@ -1,7 +1,3 @@
-# AURA Restaurant POS
-
-A production-ready Flask application for restaurant Point of Sale and management.
-
 ## Setup
 
 1. **Create Virtual Environment**:
@@ -42,11 +38,4 @@ A production-ready Flask application for restaurant Point of Sale and management
 Run the test suite with pytest:
 ```bash
 pytest tests/ -v
-```
-
-## Production Deployment
-
-For production, use a WSGI server like Gunicorn:
-```bash
-gunicorn -w 4 -b 127.0.0.1:5000 wsgi:app
 ```
