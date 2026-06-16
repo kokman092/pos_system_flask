@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
+from extensions import db
 from app.decorators import role_required, permission_required
 from app.forms.inventory_forms import AddStockBatchForm, AdjustStockForm, WasteLogForm, IngredientForm
 from app.services import inventory_service
@@ -11,8 +12,13 @@ inventory_bp = Blueprint('inventory', __name__, url_prefix='/inventory')
 
 
 @inventory_bp.before_request
-@login_required
 def limit_inventory_access():
+    if not current_user.is_authenticated:
+        if request.is_json or request.headers.get('Accept') == 'application/json' or request.path.startswith('/api/'):
+            from app.utils.response import error_response
+            return error_response("Unauthorized", 401)
+        return redirect(url_for('auth.login'))
+        
     if not (current_user.has_permission('inventory', 'view') or
             current_user.has_permission('suppliers', 'view') or
             current_user.has_permission('purchasing', 'view')):
@@ -100,7 +106,7 @@ def index():
 
 @inventory_bp.route('/batch', methods=['POST'])
 @login_required
-@permission_required('inventory', 'edit')
+@permission_required('inventory', 'create')
 def add_batch():
     form = AddStockBatchForm(request.form)
     reason = request.form.get('reason', 'Emergency/Informal Stock Added')
@@ -129,12 +135,30 @@ def adjust():
     form = AdjustStockForm(request.form)
     if form.validate():
         try:
+            ingredient = db.session.get(Ingredient, form.ingredient_id.data)
+            if not ingredient:
+                raise ValueError("Ingredient not found")
+            
+            current_qty = float(ingredient.qty_in_stock or 0)
+            adj_type = form.adjustment_type.data
+            qty_val = float(form.set_qty.data)
+            
+            if adj_type == 'add':
+                new_qty = current_qty + qty_val
+            elif adj_type == 'remove':
+                new_qty = current_qty - qty_val
+            else: # 'set'
+                new_qty = qty_val
+                
             inventory_service.adjust_stock(
-                form.ingredient_id.data, float(form.new_qty.data),
+                form.ingredient_id.data, new_qty,
                 current_user.employee_id, form.reason.data)
             flash('Stock updated successfully', 'success')
         except Exception as e:
             flash(str(e), 'error')
+    else:
+        for field, errors in form.errors.items():
+            flash(f"{field}: {', '.join(errors)}", 'error')
     return redirect(url_for('inventory.index'))
 
 

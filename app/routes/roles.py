@@ -28,8 +28,8 @@ def index():
         grouped_permissions=grouped_permissions,
         employees=employees,
         branches=branches,
-        modules=['dashboard', 'pos', 'inventory', 'suppliers', 'purchasing', 'reports', 'settings'],
-        actions=['view', 'create', 'edit', 'approve', 'delete', 'export']
+        modules=['dashboard', 'pos', 'inventory', 'suppliers', 'purchasing', 'reports', 'settings', 'roles', 'users'],
+        actions=['view', 'create', 'edit', 'approve', 'delete', 'export', 'manage']
     )
 
 

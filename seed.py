@@ -76,10 +76,10 @@ def seed_database():
         
         # Default Roles
         default_roles_data = [
-            ("Owner / Admin", "Full system administrator access", 1, [
+            ("Owner / Admin", "Full system administrator access", 1, "admin", [
                 key for key, _, _ in permissions_data
             ]),
-            ("Branch Manager", "Manage branches, inventory, POS, reports, and purchase orders", 1, [
+            ("Branch Manager", "Manage branches, inventory, POS, reports, and purchase orders", 1, "manager", [
                 "dashboard:view",
                 "pos:create_sale", "pos:apply_discount", "pos:void_bill", "pos:refund", "pos:open_drawer", "pos:shift_close", "pos:view",
                 "inventory:view", "inventory:add_stock", "inventory:adjust_stock", "inventory:count_stock", "inventory:view_history",
@@ -89,28 +89,30 @@ def seed_database():
                 "reports:sales", "reports:inventory", "reports:purchasing", "reports:export",
                 "users:manage"
             ]),
-            ("Cashier", "Handle POS operations, checkout, and receipt printing", 1, [
+            ("Cashier", "Handle POS operations, checkout, and receipt printing", 1, "cashier", [
                 "pos:create_sale", "pos:apply_discount", "pos:open_drawer", "pos:shift_close", "pos:view"
             ]),
-            ("Inventory Clerk / Purchaser", "Manage inventory items, suppliers, purchase orders, and receive deliveries", 1, [
+            ("Inventory Clerk / Purchaser", "Manage inventory items, suppliers, purchase orders, and receive deliveries", 1, "purchaser", [
                 "inventory:view", "inventory:add_stock", "inventory:adjust_stock", "inventory:count_stock", "inventory:view_history",
                 "ingredients:add", "ingredients:edit", "ingredients:deactivate",
                 "suppliers:view", "suppliers:create", "suppliers:edit", "suppliers:delete",
                 "purchasing:create", "purchasing:cancel", "purchasing:receive", "purchasing:view",
                 "reports:inventory", "reports:purchasing"
             ]),
-            ("Kitchen / Staff", "Kitchen Display System status updates and basic views", 1, [
+            ("Kitchen / Staff", "Kitchen Display System status updates and basic views", 1, "kitchen", [
                 "pos:view"
             ])
         ]
         
         roles_obj = {}
-        for rname, desc, is_sys, perm_keys in default_roles_data:
+        for rname, desc, is_sys, slug, perm_keys in default_roles_data:
             role_rec = Role.query.filter_by(role_name=rname).first()
             if not role_rec:
-                role_rec = Role(role_name=rname, description=desc, is_system_role=is_sys)
+                role_rec = Role(role_name=rname, description=desc, is_system_role=is_sys, role_slug=slug)
                 db.session.add(role_rec)
-                db.session.flush()
+            else:
+                role_rec.role_slug = slug
+            db.session.flush()
             
             # Associate permissions
             role_rec.permissions = [permissions_dict[k] for k in perm_keys if k in permissions_dict]

@@ -91,9 +91,11 @@ def test_adjust_stock_route(app_context):
         ing = Ingredient.query.filter_by(name="Beef Patty").first()
         ing_id = ing.ingredient_id
         
+    # 1. Test 'set' adjustment
     rv = client.post('/inventory/adjust', data={
         'ingredient_id': ing_id,
-        'new_qty': '15.000',
+        'adjustment_type': 'set',
+        'set_qty': '15.000',
         'reason': 'Inventory adjustment check'
     })
     assert rv.status_code == 302
@@ -101,6 +103,32 @@ def test_adjust_stock_route(app_context):
     with app.app_context():
         ing = db.session.get(Ingredient, ing_id)
         assert float(ing.qty_in_stock) == 15.000
+        
+    # 2. Test 'add' adjustment
+    rv = client.post('/inventory/adjust', data={
+        'ingredient_id': ing_id,
+        'adjustment_type': 'add',
+        'set_qty': '5.000',
+        'reason': 'Inventory add check'
+    })
+    assert rv.status_code == 302
+    
+    with app.app_context():
+        ing = db.session.get(Ingredient, ing_id)
+        assert float(ing.qty_in_stock) == 20.000
+        
+    # 3. Test 'remove' adjustment
+    rv = client.post('/inventory/adjust', data={
+        'ingredient_id': ing_id,
+        'adjustment_type': 'remove',
+        'set_qty': '3.000',
+        'reason': 'Inventory remove check'
+    })
+    assert rv.status_code == 302
+    
+    with app.app_context():
+        ing = db.session.get(Ingredient, ing_id)
+        assert float(ing.qty_in_stock) == 17.000
 
 
 def test_log_waste_route(app_context):

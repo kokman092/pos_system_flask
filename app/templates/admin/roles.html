@@ -116,12 +116,9 @@
                                     <thead>
                                         <tr>
                                             <th>Module / Section</th>
-                                            <th class="text-center" style="width: 100px;">View</th>
-                                            <th class="text-center" style="width: 100px;">Create</th>
-                                            <th class="text-center" style="width: 100px;">Edit</th>
-                                            <th class="text-center" style="width: 100px;">Approve</th>
-                                            <th class="text-center" style="width: 100px;">Delete</th>
-                                            <th class="text-center" style="width: 100px;">Export</th>
+                                            {% for action in actions %}
+                                            <th class="text-center text-capitalize" style="width: 100px;">{{ action }}</th>
+                                            {% endfor %}
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -135,6 +132,8 @@
                                                     {% elif module == 'suppliers' %}fa-truck-field
                                                     {% elif module == 'purchasing' %}fa-file-signature
                                                     {% elif module == 'reports' %}fa-file-invoice-dollar
+                                                    {% elif module == 'roles' %}fa-users-gear
+                                                    {% elif module == 'users' %}fa-users
                                                     {% else %}fa-gears{% endif %} 
                                                     text-emerald me-2" style="width: 18px;"></i>
                                                 {{ module }}

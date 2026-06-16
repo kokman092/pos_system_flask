@@ -17,7 +17,8 @@ class WasteLogForm(FlaskForm):
 
 class AdjustStockForm(FlaskForm):
     ingredient_id = SelectField('Ingredient', coerce=int, validators=[DataRequired()], validate_choice=False)
-    new_qty = DecimalField('New Quantity', places=3, validators=[DataRequired(), NumberRange(min=0)])
+    adjustment_type = SelectField('Adjustment Type', choices=[('set', 'Set'), ('add', 'Add'), ('remove', 'Remove')], default='set', validators=[DataRequired()])
+    set_qty = DecimalField('Quantity', places=3, validators=[DataRequired(), NumberRange(min=0)])
     reason = StringField('Reason', validators=[DataRequired(), Length(min=3, max=255)])
 
 class InventoryCountForm(FlaskForm):

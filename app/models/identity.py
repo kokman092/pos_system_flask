@@ -35,6 +35,7 @@ class Role(db.Model):
     __tablename__ = 'roles'
     role_id = db.Column(db.Integer, db.Identity(), primary_key=True)
     role_name = db.Column(db.String(50), nullable=False, unique=True)
+    role_slug = db.Column(db.String(50), nullable=True, unique=True)
     description = db.Column(db.String(255))
     is_system_role = db.Column(db.SmallInteger, default=0)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
@@ -83,18 +84,7 @@ class Employee(db.Model, UserMixin):
     @hybrid_property
     def role(self):
         if self.role_rel:
-            name = self.role_rel.role_name.lower()
-            if 'admin' in name:
-                return 'admin'
-            elif 'manager' in name:
-                return 'manager'
-            elif 'cashier' in name:
-                return 'cashier'
-            elif 'purchaser' in name or 'clerk' in name:
-                return 'purchaser'
-            elif 'kitchen' in name or 'staff' in name:
-                return 'kitchen'
-            return name
+            return self.role_rel.role_slug or self.role_rel.role_name.lower()
         return None
 
     @role.setter
@@ -102,23 +92,25 @@ class Employee(db.Model, UserMixin):
         if not value:
             self.role_id = None
             return
-        # Find role by name
-        role_rec = Role.query.filter(Role.role_name.ilike(f"%{value}%")).first()
+        
+        val_lower = value.lower()
+        role_rec = Role.query.filter_by(role_slug=val_lower).first()
         if not role_rec:
-            # Fallbacks for legacy string values
-            val_lower = value.lower()
-            if 'admin' in val_lower:
-                role_rec = Role.query.filter_by(role_name='Owner / Admin').first()
-            elif 'manager' in val_lower:
-                role_rec = Role.query.filter_by(role_name='Branch Manager').first()
-            elif 'cashier' in val_lower:
-                role_rec = Role.query.filter_by(role_name='Cashier').first()
-            elif 'waiter' in val_lower:
-                role_rec = Role.query.filter_by(role_name='Kitchen / Staff').first()
-            elif 'purchaser' in val_lower or 'clerk' in val_lower:
-                role_rec = Role.query.filter_by(role_name='Inventory Clerk / Purchaser').first()
-            elif 'kitchen' in val_lower:
-                role_rec = Role.query.filter_by(role_name='Kitchen / Staff').first()
+            role_rec = Role.query.filter_by(role_name=value).first()
+        
+        # Exact system/legacy mappings to avoid fragile wildcard ilike matching
+        if not role_rec:
+            if val_lower in ('waiter', 'staff', 'kitchen'):
+                role_rec = Role.query.filter_by(role_slug='kitchen').first()
+            elif val_lower in ('admin', 'owner'):
+                role_rec = Role.query.filter_by(role_slug='admin').first()
+            elif val_lower == 'manager':
+                role_rec = Role.query.filter_by(role_slug='manager').first()
+            elif val_lower == 'cashier':
+                role_rec = Role.query.filter_by(role_slug='cashier').first()
+            elif val_lower in ('purchaser', 'clerk', 'inventory clerk'):
+                role_rec = Role.query.filter_by(role_slug='purchaser').first()
+        
         if role_rec:
             self.role_id = role_rec.role_id
 
@@ -126,16 +118,7 @@ class Employee(db.Model, UserMixin):
     def role(cls):
         return (
             select(
-                db.case(
-                    (Role.role_name.ilike('%admin%'), 'admin'),
-                    (Role.role_name.ilike('%manager%'), 'manager'),
-                    (Role.role_name.ilike('%cashier%'), 'cashier'),
-                    (Role.role_name.ilike('%purchaser%'), 'purchaser'),
-                    (Role.role_name.ilike('%clerk%'), 'purchaser'),
-                    (Role.role_name.ilike('%kitchen%'), 'kitchen'),
-                    (Role.role_name.ilike('%staff%'), 'kitchen'),
-                    else_='kitchen'
-                )
+                db.func.coalesce(Role.role_slug, db.func.lower(Role.role_name))
             )
             .where(Role.role_id == cls.role_id)
             .correlate_except(Role)
